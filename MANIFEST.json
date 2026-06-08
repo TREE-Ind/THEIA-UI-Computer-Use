@@ -2,7 +2,7 @@
   "name": "hermes-windows-computer-use",
   "display_name": "THEIA Computer Use",
   "expansion": "The Human Environment Intelligence Aperture",
-  "created_utc": "2026-06-08T19:28:05Z",
+  "created_utc": "2026-06-08T20:56:26Z",
   "file_count": 34,
   "files": [
     {
@@ -27,13 +27,13 @@
     },
     {
       "path": ".pytest_cache/v/cache/nodeids",
-      "bytes": 81,
-      "sha256": "f5ec323336fd2f1551786c6cec2657908870fdd774bd0eb5a0db7e64b6e52405"
+      "bytes": 262,
+      "sha256": "dd3604f8b4bd44dd44aa6cc4112bc2a8082a1102f0259af3f75950dac2f5ba5d"
     },
     {
       "path": "__init__.py",
-      "bytes": 2171,
-      "sha256": "d05a9de7f1f1ba2bc7fcfcacf374960730483dc4f1278f9911d85c4ed7c7efc2"
+      "bytes": 2872,
+      "sha256": "ce86b4d04eceb06c7f27f42dc8a407d85c51b4b38ee6abf4af422f5a846de53c"
     },
     {
       "path": "after-install.md",
@@ -58,12 +58,12 @@
     {
       "path": "MANIFEST.json",
       "bytes": 6091,
-      "sha256": "c0eda6d028f951899555ebeaf3722f1398416cf7106296e083d9f1c51b42df2d"
+      "sha256": "fcf32eb9a121b9cbe23138ab3795e8dcce3268fbb2635bb86cf02bec834f43ca"
     },
     {
       "path": "MANIFEST.md",
       "bytes": 2687,
-      "sha256": "98fd5c31ac49c1ce2bf374771a786d3ec4ac6d756b351db3f005a24c21c59b6c"
+      "sha256": "3ff1167cd6f26b1a8ee3cde61f410ff589e2d80caf4ca91d5de491d681d01216"
     },
     {
       "path": "plugin.yaml",
@@ -162,8 +162,8 @@
     },
     {
       "path": "tests/test_plugin_registration.py",
-      "bytes": 765,
-      "sha256": "c2c6f591a8cee196000e3d8df6dea29e409088fed55b58704279eec7ce6c4a5b"
+      "bytes": 1889,
+      "sha256": "14ed675e1323ddda99ea7e99afa795c7e88411d840f4c1cb33626f5342bc17ff"
     },
     {
       "path": "windows_computer_use.py",

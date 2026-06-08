@@ -51,7 +51,23 @@ def _load_tool_module():
         spec.loader.exec_module(module)
         return module
 
+def _register_bundled_skill(ctx) -> None:
+    """Register the bundled operator skill using the Hermes plugin API.
+
+    Hermes exposes plugin skills as namespaced skills, e.g.
+    ``skill_view(\"plugin:skill\")``. The non-destructive profile copy remains
+    as a compatibility convenience for users who expect the unqualified
+    ``windows-computer-use`` skill to appear after install.
+    """
+    source = Path(__file__).resolve().parent / "skills" / "windows-computer-use"
+    skill_md = source / "SKILL.md"
+    if not skill_md.exists() or not hasattr(ctx, "register_skill"):
+        return
+    ctx.register_skill("windows-computer-use", skill_md)
+
+
 def register(ctx):
+    _register_bundled_skill(ctx)
     _install_skill_if_missing()
     windows_computer_use = _load_tool_module()
     windows_computer_use.register_tools(ctx)

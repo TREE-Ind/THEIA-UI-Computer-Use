@@ -7,14 +7,14 @@ Expansion: **The Human Environment Intelligence Aperture**
 - `.pytest_cache/.gitignore` — 39 bytes — `e7c6bb30148c…`
 - `.pytest_cache/CACHEDIR.TAG` — 191 bytes — `37dc88ef9a0a…`
 - `.pytest_cache/README.md` — 310 bytes — `420e808d79a6…`
-- `.pytest_cache/v/cache/nodeids` — 81 bytes — `f5ec323336fd…`
-- `__init__.py` — 2171 bytes — `d05a9de7f1f1…`
+- `.pytest_cache/v/cache/nodeids` — 262 bytes — `dd3604f8b4bd…`
+- `__init__.py` — 2872 bytes — `ce86b4d04ece…`
 - `after-install.md` — 484 bytes — `0c93bc619893…`
 - `assets/windows-computer-use-infographic.png` — 1997355 bytes — `b6e6a535dbc9…`
 - `docs/PLUGIN_DESIGN.md` — 483 bytes — `5d2e2b94fc85…`
 - `LICENSE` — 1103 bytes — `b5fd60e4ac73…`
-- `MANIFEST.json` — 6091 bytes — `c0eda6d028f9…`
-- `MANIFEST.md` — 2687 bytes — `98fd5c31ac49…`
+- `MANIFEST.json` — 6091 bytes — `fcf32eb9a121…`
+- `MANIFEST.md` — 2687 bytes — `3ff1167cd6f2…`
 - `plugin.yaml` — 1131 bytes — `2670042e71be…`
 - `pyproject.toml` — 755 bytes — `ff60508f3c77…`
 - `README.md` — 9766 bytes — `5141d6c5bd8c…`
@@ -34,6 +34,6 @@ Expansion: **The Human Environment Intelligence Aperture**
 - `skills/windows-computer-use/references/troubleshooting.md` — 2196 bytes — `6ce97d005787…`
 - `skills/windows-computer-use/references/verification-and-safety.md` — 1968 bytes — `aa348f5b840a…`
 - `skills/windows-computer-use/SKILL.md` — 5254 bytes — `ffe3634fd4e4…`
-- `tests/test_plugin_registration.py` — 765 bytes — `c2c6f591a8ce…`
+- `tests/test_plugin_registration.py` — 1889 bytes — `14ed675e1323…`
 - `windows_computer_use.py` — 47393 bytes — `39c71c7937b7…`
 - `windows_computer_use_locate_worker.py` — 21928 bytes — `468139884df4…`
