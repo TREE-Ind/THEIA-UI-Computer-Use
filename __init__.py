@@ -37,11 +37,11 @@ def _missing_basic_dependencies() -> list[str]:
 def _install_basic_dependencies_if_missing() -> None:
     """Best-effort install of THEIA's lightweight runtime dependencies.
 
-    Hermes' plugin installer clones/enables plugins but does not currently run
-    plugin requirements files or post-install scripts. To keep GitHub installs
-    easy for new users, THEIA self-heals missing *basic* desktop-control deps
-    on first plugin load. Heavy LocateAnything/CUDA dependencies are never
-    installed here; those stay isolated in the optional external worker.
+    Current Hermes plugin installs read THEIA's ``pip_dependencies`` manifest
+    metadata, so this path is mainly a compatibility fallback for older Hermes
+    builds or blocked install-time dependency setup. Heavy LocateAnything/CUDA
+    dependencies are never installed here; those stay isolated in the optional
+    external worker.
 
     Set THEIA_AUTO_INSTALL_BASIC_DEPS=false to disable this behavior.
     """

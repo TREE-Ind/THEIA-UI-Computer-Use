@@ -2,8 +2,8 @@
   "name": "hermes-windows-computer-use",
   "display_name": "THEIA Computer Use",
   "expansion": "The Human Environment Intelligence Aperture",
-  "created_utc": "2026-06-08T21:36:16Z",
-  "file_count": 34,
+  "created_utc": "2026-06-08T23:06:14Z",
+  "file_count": 28,
   "files": [
     {
       "path": ".gitignore",
@@ -11,34 +11,14 @@
       "sha256": "7609529e1b8cc594e9ed2d0570ef7826afb332250d847754ddc1bceedf407c86"
     },
     {
-      "path": ".pytest_cache/.gitignore",
-      "bytes": 39,
-      "sha256": "e7c6bb30148cf667606dcd63e7ca77acaa3cfb0c8303bf09e6419e1e1669dc6d"
-    },
-    {
-      "path": ".pytest_cache/CACHEDIR.TAG",
-      "bytes": 191,
-      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4"
-    },
-    {
-      "path": ".pytest_cache/README.md",
-      "bytes": 310,
-      "sha256": "420e808d79a6c25d3cda0af33bc4782314a14949866682c68ce8149e89b66b70"
-    },
-    {
-      "path": ".pytest_cache/v/cache/nodeids",
-      "bytes": 452,
-      "sha256": "80380035987eee9236d1a3f2a4af57c15dc1b930ffaa53a80374eb6561236132"
-    },
-    {
       "path": "__init__.py",
-      "bytes": 5606,
-      "sha256": "06ec9abfd49ba9ff1f591a279f18713cf795c51c3674e879f3cab15dc079bd8a"
+      "bytes": 5558,
+      "sha256": "d4cf79c1aee8761f1314c56f41a02c71f1109609ef9c0239eb13dc84f982e8a3"
     },
     {
       "path": "after-install.md",
-      "bytes": 1255,
-      "sha256": "2b0ebffc4cc5c60a21d63aec07de1aa458b84437d835616474b6e339b1704866"
+      "bytes": 1245,
+      "sha256": "871ac9d210b3c0d1684497521ecebb25699f103507d3e5d1e27ea02a5134cdb4"
     },
     {
       "path": "assets/windows-computer-use-infographic.png",
@@ -56,19 +36,9 @@
       "sha256": "b5fd60e4ac739adeefaf7caf77aa8717de874ca060c276e23685a3ca49f2c3f6"
     },
     {
-      "path": "MANIFEST.json",
-      "bytes": 6093,
-      "sha256": "6febb7fc16947dc7b819b72487d835322fbf7689e8596bf496aac12822dde2fb"
-    },
-    {
-      "path": "MANIFEST.md",
-      "bytes": 2689,
-      "sha256": "b953331dead87d050c92ded656545a60c36c3346ceea7f88bf91099a2a76237a"
-    },
-    {
       "path": "plugin.yaml",
-      "bytes": 1131,
-      "sha256": "2670042e71bedb06c2fb47eecbf8bbd2df37a3e29ab80386f8647e84189820ea"
+      "bytes": 1273,
+      "sha256": "cade04f8e5e583d4b5a5c58ea260c8a3e33f8ae33e160941fbaa69d22877a035"
     },
     {
       "path": "pyproject.toml",
@@ -77,8 +47,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 10601,
-      "sha256": "7ad64c0b0864b63c83c1da035292a0e3f44c75c264c7b35273bb77d4486506f6"
+      "bytes": 10558,
+      "sha256": "718c92418f345708996d0700bbde926506fdde27675b7dfa5b423d036e364830"
     },
     {
       "path": "requirements-basic.txt",
@@ -172,8 +142,8 @@
     },
     {
       "path": "windows_computer_use_locate_worker.py",
-      "bytes": 21928,
-      "sha256": "468139884df44089b8649ecbd421879825a7f92eba2ec03ae59237568bf882d1"
+      "bytes": 22303,
+      "sha256": "dd502d1dbf1a2cd81f56c5d611ef849ace161b5a1a67bdd5bf87b5f0ff9ad7bc"
     }
   ]
 }

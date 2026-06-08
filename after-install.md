@@ -14,11 +14,10 @@ Restart Hermes after enabling the plugin/toolset.
 
 ## Basic dependencies
 
-Hermes Agent does not currently run plugin requirements files during `hermes
-plugins install`. THEIA handles this automatically on first plugin load: if the
-lightweight basic dependencies are missing, it attempts to install
-`requirements-basic.txt` into the Python environment currently running Hermes
-Agent.
+Current Hermes Agent plugin installs read THEIA's `pip_dependencies` metadata
+from `plugin.yaml` and install the lightweight basic dependencies into the
+Python environment currently running Hermes Agent. THEIA also keeps a
+best-effort first-load fallback for older Hermes builds or blocked installs.
 
 This only covers the basic desktop-control stack: PyAutoGUI, Pillow,
 PyGetWindow, and pywin32 on Windows. Set `THEIA_AUTO_INSTALL_BASIC_DEPS=false`

@@ -157,17 +157,16 @@ hermes gateway restart
 
 ## Dependency modes
 
-### Basic mode: automatic
+### Basic mode: automatic during plugin install
 
 Basic mode supports screenshots, active-window checks, pixel checks, and live
 mouse/keyboard actions.
 
-Hermes Agent's plugin installer clones and enables plugins, but it does not
-currently run plugin `requirements.txt` files or post-install pip hooks. THEIA
-therefore performs a small best-effort dependency check the first time the
-plugin loads. If any lightweight basic dependency is missing, THEIA attempts to
-install only `requirements-basic.txt` into the Python environment currently
-running Hermes Agent.
+Current Hermes Agent plugin installs read THEIA's `pip_dependencies` metadata
+from `plugin.yaml` and install the lightweight basic dependencies into the
+Python environment currently running Hermes Agent. THEIA also keeps a small
+best-effort dependency check on first plugin load as a fallback for older Hermes
+Agent builds or blocked installs.
 
 Installed automatically when missing:
 
