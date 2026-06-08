@@ -5,6 +5,8 @@ import importlib.util
 import json
 import os
 import platform
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,13 +31,41 @@ class FakeCtx:
     def register_tool(self, **kwargs):
         self.tools.append(kwargs["name"])
 
+
+def install_basic_requirements() -> tuple[bool, str]:
+    req = ROOT / "requirements-basic.txt"
+    if not req.exists():
+        return False, f"missing {req}"
+    commands = []
+    uv = shutil.which("uv")
+    if uv:
+        commands.append([uv, "pip", "install", "--python", sys.executable, "-r", str(req)])
+    commands.append([sys.executable, "-m", "pip", "install", "-r", str(req)])
+    last = ""
+    for command in commands:
+        try:
+            proc = subprocess.run(command, cwd=str(ROOT), text=True, capture_output=True, timeout=180)
+        except Exception as exc:
+            last = f"{type(exc).__name__}: {exc}"
+            continue
+        if proc.returncode == 0:
+            return True, " ".join(command)
+        last = (proc.stderr or proc.stdout or "").strip()[-1000:]
+    return False, last
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate Hermes Windows Computer Use plugin")
+    parser = argparse.ArgumentParser(description="Validate THEIA Computer Use plugin")
+    parser.add_argument("--install-basic", action="store_true", help="install lightweight basic dependencies before checking")
     parser.add_argument("--locate", action="store_true", help="also test LocateAnything worker availability")
     parser.add_argument("--json", action="store_true", help="print JSON summary at end")
     args = parser.parse_args()
 
     results = []
+    if args.install_basic:
+        ok, detail = install_basic_requirements()
+        results.append(check("install basic dependencies", ok, detail))
+
     results.append(check("OS is Windows", os.name == "nt", f"os.name={os.name}, platform={platform.platform()}"))
     results.append(check("plugin.yaml exists", (ROOT / "plugin.yaml").exists(), str(ROOT / "plugin.yaml")))
     results.append(check("root __init__.py exists", (ROOT / "__init__.py").exists(), str(ROOT / "__init__.py")))

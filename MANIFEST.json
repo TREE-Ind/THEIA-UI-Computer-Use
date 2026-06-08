@@ -2,7 +2,7 @@
   "name": "hermes-windows-computer-use",
   "display_name": "THEIA Computer Use",
   "expansion": "The Human Environment Intelligence Aperture",
-  "created_utc": "2026-06-08T20:56:59Z",
+  "created_utc": "2026-06-08T21:36:16Z",
   "file_count": 34,
   "files": [
     {
@@ -27,18 +27,18 @@
     },
     {
       "path": ".pytest_cache/v/cache/nodeids",
-      "bytes": 262,
-      "sha256": "dd3604f8b4bd44dd44aa6cc4112bc2a8082a1102f0259af3f75950dac2f5ba5d"
+      "bytes": 452,
+      "sha256": "80380035987eee9236d1a3f2a4af57c15dc1b930ffaa53a80374eb6561236132"
     },
     {
       "path": "__init__.py",
-      "bytes": 2872,
-      "sha256": "ce86b4d04eceb06c7f27f42dc8a407d85c51b4b38ee6abf4af422f5a846de53c"
+      "bytes": 5606,
+      "sha256": "06ec9abfd49ba9ff1f591a279f18713cf795c51c3674e879f3cab15dc079bd8a"
     },
     {
       "path": "after-install.md",
-      "bytes": 484,
-      "sha256": "0c93bc61989387b257cb7edeb3fdf2528bc851df83d1f15764405419843389ca"
+      "bytes": 1255,
+      "sha256": "2b0ebffc4cc5c60a21d63aec07de1aa458b84437d835616474b6e339b1704866"
     },
     {
       "path": "assets/windows-computer-use-infographic.png",
@@ -58,12 +58,12 @@
     {
       "path": "MANIFEST.json",
       "bytes": 6093,
-      "sha256": "fbb5b41f4041df71e37562ffd4928eea326d5cecd79b604af4440634cf20e140"
+      "sha256": "6febb7fc16947dc7b819b72487d835322fbf7689e8596bf496aac12822dde2fb"
     },
     {
       "path": "MANIFEST.md",
       "bytes": 2689,
-      "sha256": "8fefb28f4a2891bc630c41bdaa2c324f26284f4aa37b3ce65fcbfbb803a92b7d"
+      "sha256": "b953331dead87d050c92ded656545a60c36c3346ceea7f88bf91099a2a76237a"
     },
     {
       "path": "plugin.yaml",
@@ -77,8 +77,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 9752,
-      "sha256": "836d8f171e3f871ebb049562965a164c7769903da86ff25f92807ecc8f64e168"
+      "bytes": 10601,
+      "sha256": "7ad64c0b0864b63c83c1da035292a0e3f44c75c264c7b35273bb77d4486506f6"
     },
     {
       "path": "requirements-basic.txt",
@@ -92,8 +92,8 @@
     },
     {
       "path": "scripts/doctor.py",
-      "bytes": 3588,
-      "sha256": "6e8ef9a218c25e77cf4790859687a7fe9300a5f50a0fecfe7086701815cf598c"
+      "bytes": 4736,
+      "sha256": "a2035a8126b95a25ede43bbd33ba6175800c0b8cdf70a13f0de63c03c1fc4034"
     },
     {
       "path": "scripts/install_basic.ps1",
@@ -162,8 +162,8 @@
     },
     {
       "path": "tests/test_plugin_registration.py",
-      "bytes": 1889,
-      "sha256": "14ed675e1323ddda99ea7e99afa795c7e88411d840f4c1cb33626f5342bc17ff"
+      "bytes": 3287,
+      "sha256": "f78f9ce3452c13f0945c1bac4e4100b4bfe242aa8829eeca7320e1e5b848c6ce"
     },
     {
       "path": "windows_computer_use.py",

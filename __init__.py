@@ -5,10 +5,86 @@ plugin and makes the bundled skill available in the active Hermes profile.
 """
 from __future__ import annotations
 
+import importlib.util
+import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 PLUGIN_NAME = "hermes-windows-computer-use"
+_BASIC_DEPENDENCY_MODULES = {
+    "pyautogui": "pyautogui",
+    "PIL": "pillow",
+    "pygetwindow": "pygetwindow",
+}
+if os.name == "nt":
+    _BASIC_DEPENDENCY_MODULES["win32gui"] = "pywin32"
+
+
+def _truthy_env(name: str, default: str = "true") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _missing_basic_dependencies() -> list[str]:
+    missing: list[str] = []
+    for module_name, package_name in _BASIC_DEPENDENCY_MODULES.items():
+        if importlib.util.find_spec(module_name) is None:
+            missing.append(package_name)
+    return sorted(set(missing))
+
+
+def _install_basic_dependencies_if_missing() -> None:
+    """Best-effort install of THEIA's lightweight runtime dependencies.
+
+    Hermes' plugin installer clones/enables plugins but does not currently run
+    plugin requirements files or post-install scripts. To keep GitHub installs
+    easy for new users, THEIA self-heals missing *basic* desktop-control deps
+    on first plugin load. Heavy LocateAnything/CUDA dependencies are never
+    installed here; those stay isolated in the optional external worker.
+
+    Set THEIA_AUTO_INSTALL_BASIC_DEPS=false to disable this behavior.
+    """
+    if not _truthy_env("THEIA_AUTO_INSTALL_BASIC_DEPS", "true"):
+        return
+    missing = _missing_basic_dependencies()
+    if not missing:
+        return
+
+    requirements = Path(__file__).resolve().parent / "requirements-basic.txt"
+    if not requirements.exists():
+        return
+
+    commands: list[list[str]] = []
+    uv = shutil.which("uv")
+    if uv:
+        commands.append([uv, "pip", "install", "--python", sys.executable, "-r", str(requirements)])
+    commands.append([sys.executable, "-m", "pip", "install", "-r", str(requirements)])
+
+    last_error = ""
+    for command in commands:
+        try:
+            proc = subprocess.run(
+                command,
+                cwd=str(Path(__file__).resolve().parent),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+            continue
+        if proc.returncode == 0:
+            return
+        last_error = (proc.stderr or proc.stdout or "").strip()[-1000:]
+
+    print(
+        "[THEIA] Basic dependency auto-install failed. "
+        f"Missing: {', '.join(missing)}. "
+        "Run `python -m pip install -r requirements-basic.txt` from the plugin "
+        f"directory. Last error: {last_error}",
+        file=sys.stderr,
+    )
 
 def _install_skill_if_missing() -> None:
     """Copy bundled SKILL.md docs into the active Hermes profile if absent.
@@ -69,5 +145,6 @@ def _register_bundled_skill(ctx) -> None:
 def register(ctx):
     _register_bundled_skill(ctx)
     _install_skill_if_missing()
+    _install_basic_dependencies_if_missing()
     windows_computer_use = _load_tool_module()
     windows_computer_use.register_tools(ctx)

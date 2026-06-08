@@ -1,4 +1,5 @@
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,6 +14,18 @@ class FakeCtx:
         self.tools.append(kwargs)
     def register_skill(self, name, path):
         self.skills.append((name, Path(path)))
+
+def load_plugin_module(name="hermes_windows_computer_use_plugin"):
+    spec = importlib.util.spec_from_file_location(
+        name,
+        ROOT / "__init__.py",
+        submodule_search_locations=[str(ROOT)],
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 def test_tool_module_registers_expected_tools():
     import windows_computer_use
@@ -29,15 +42,7 @@ def test_tool_module_registers_expected_tools():
 def test_plugin_entrypoint_registers_tools_and_bundled_skill(monkeypatch, tmp_path):
     # Avoid mutating the real Hermes profile during plugin import smoke tests.
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
-    spec = importlib.util.spec_from_file_location(
-        "hermes_windows_computer_use_plugin",
-        ROOT / "__init__.py",
-        submodule_search_locations=[str(ROOT)],
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    module = load_plugin_module()
 
     ctx = FakeCtx()
     module.register(ctx)
@@ -51,3 +56,33 @@ def test_plugin_entrypoint_registers_tools_and_bundled_skill(monkeypatch, tmp_pa
     assert skill_name == "windows-computer-use"
     assert skill_path.name == "SKILL.md"
     assert skill_path.exists()
+
+def test_basic_dependency_auto_install_uses_uv_when_missing(monkeypatch):
+    module = load_plugin_module("hermes_windows_computer_use_plugin_auto_install")
+    calls = []
+
+    monkeypatch.setattr(module, "_missing_basic_dependencies", lambda: ["pyautogui"])
+    monkeypatch.setattr(module.shutil, "which", lambda name: "uv" if name == "uv" else None)
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    module._install_basic_dependencies_if_missing()
+
+    assert calls
+    assert calls[0][:3] == ["uv", "pip", "install"]
+    assert "--python" in calls[0]
+    assert "requirements-basic.txt" in calls[0][-1]
+
+def test_basic_dependency_auto_install_respects_opt_out(monkeypatch):
+    module = load_plugin_module("hermes_windows_computer_use_plugin_auto_install_opt_out")
+    calls = []
+    monkeypatch.setenv("THEIA_AUTO_INSTALL_BASIC_DEPS", "false")
+    monkeypatch.setattr(module, "_missing_basic_dependencies", lambda: ["pyautogui"])
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **k: calls.append(a))
+
+    module._install_basic_dependencies_if_missing()
+
+    assert calls == []

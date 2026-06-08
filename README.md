@@ -157,16 +157,38 @@ hermes gateway restart
 
 ## Dependency modes
 
-### Basic mode
+### Basic mode: automatic
 
-Basic mode supports screenshots and live mouse/keyboard actions. Install the
-lightweight dependencies into the Python environment that runs Hermes:
+Basic mode supports screenshots, active-window checks, pixel checks, and live
+mouse/keyboard actions.
+
+Hermes Agent's plugin installer clones and enables plugins, but it does not
+currently run plugin `requirements.txt` files or post-install pip hooks. THEIA
+therefore performs a small best-effort dependency check the first time the
+plugin loads. If any lightweight basic dependency is missing, THEIA attempts to
+install only `requirements-basic.txt` into the Python environment currently
+running Hermes Agent.
+
+Installed automatically when missing:
+
+- `pyautogui`
+- `pillow`
+- `pygetwindow`
+- `pywin32` on Windows
+
+Opt out for audited or air-gapped environments:
+
+```powershell
+setx THEIA_AUTO_INSTALL_BASIC_DEPS false
+```
+
+Manual fallback from the installed plugin directory:
 
 ```powershell
 python -m pip install -r requirements-basic.txt
 ```
 
-### LocateAnything mode
+### LocateAnything mode: optional and isolated
 
 Visual grounding is intentionally isolated. Do **not** force CUDA PyTorch into
 the live Hermes venv. Create an external worker venv instead:
@@ -223,6 +245,13 @@ Run:
 
 ```powershell
 python .\scripts\doctor.py
+```
+
+If automatic basic dependency installation was disabled or blocked, repair it
+manually with:
+
+```powershell
+python .\scripts\doctor.py --install-basic
 ```
 
 Optional LocateAnything check:
