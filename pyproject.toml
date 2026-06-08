@@ -1,0 +1,30 @@
+[project]
+name = "hermes-windows-computer-use"
+version = "0.1.0"
+description = "Hermes Agent plugin for Windows desktop computer use with PyAutoGUI and optional LocateAnything-3B visual grounding."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Hermes Agent + Joshua" }]
+dependencies = [
+  "pyautogui>=0.9.54",
+  "pillow>=10.0.0",
+  "pygetwindow>=0.0.9",
+  "pywin32>=306; platform_system == 'Windows'",
+]
+
+[project.optional-dependencies]
+locate = [
+  "opencv-python>=4.8.0",
+  "transformers==4.57.1",
+  "peft>=0.13.0",
+  "accelerate>=0.33.0",
+  "sentencepiece>=0.2.0",
+  "lmdb>=1.5.0",
+  "decord>=0.6.0",
+  "hf_xet>=1.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

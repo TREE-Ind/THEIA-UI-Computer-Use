@@ -1,0 +1,212 @@
+{
+  "name": "hermes-windows-computer-use",
+  "created_utc": "2026-06-08T18:01:03Z",
+  "file_count": 41,
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 142,
+      "sha256": "7609529e1b8cc594e9ed2d0570ef7826afb332250d847754ddc1bceedf407c86"
+    },
+    {
+      "path": ".pytest_cache/.gitignore",
+      "bytes": 39,
+      "sha256": "e7c6bb30148cf667606dcd63e7ca77acaa3cfb0c8303bf09e6419e1e1669dc6d"
+    },
+    {
+      "path": ".pytest_cache/CACHEDIR.TAG",
+      "bytes": 191,
+      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4"
+    },
+    {
+      "path": ".pytest_cache/README.md",
+      "bytes": 310,
+      "sha256": "420e808d79a6c25d3cda0af33bc4782314a14949866682c68ce8149e89b66b70"
+    },
+    {
+      "path": ".pytest_cache/v/cache/nodeids",
+      "bytes": 81,
+      "sha256": "f5ec323336fd2f1551786c6cec2657908870fdd774bd0eb5a0db7e64b6e52405"
+    },
+    {
+      "path": "__init__.py",
+      "bytes": 2171,
+      "sha256": "d05a9de7f1f1ba2bc7fcfcacf374960730483dc4f1278f9911d85c4ed7c7efc2"
+    },
+    {
+      "path": "after-install.md",
+      "bytes": 411,
+      "sha256": "c6f376b42fe1a9d66c5c01e32855e44fe26595cbc2bf0ed627c7ac6b6d70ab80"
+    },
+    {
+      "path": "docs/PLUGIN_DESIGN.md",
+      "bytes": 483,
+      "sha256": "5d2e2b94fc85cc761ea061ef2e3c84c18a7dd1f946bddb952317173aca70f46d"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1103,
+      "sha256": "b5fd60e4ac739adeefaf7caf77aa8717de874ca060c276e23685a3ca49f2c3f6"
+    },
+    {
+      "path": "MANIFEST.json",
+      "bytes": 7474,
+      "sha256": "3b5b94dab06073c67708d3eb61c13cb67960cf2554788770e0106ac7b80fe341"
+    },
+    {
+      "path": "MANIFEST.md",
+      "bytes": 3393,
+      "sha256": "eaa0f7ad6e96f1e95afe3edf89646807d13eee76a5b31668875e7d8f8698b23b"
+    },
+    {
+      "path": "plugin.yaml",
+      "bytes": 1053,
+      "sha256": "a2950febd057bdd402b526621a3031c71883a5aa6dd59d8b38f4c9b19a332045"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 755,
+      "sha256": "ff60508f3c775a208d867250f07e807e6a432151b4258ca6bb3176cb60e87877"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4043,
+      "sha256": "e7030b08eb3fec7685472dd0001f0a7641d59f8192f36f14682ca4fb2eb73404"
+    },
+    {
+      "path": "requirements-basic.txt",
+      "bytes": 179,
+      "sha256": "c11f39b518ff45bc230a1c137b0f58d4d5f304b010339d62c765e10d09aff47c"
+    },
+    {
+      "path": "requirements-locate.txt",
+      "bytes": 622,
+      "sha256": "b18e399a71c7116f7da024c4fd42b0fcd7154746c6c1542da0f83c6d1a3e3390"
+    },
+    {
+      "path": "scripts/doctor.py",
+      "bytes": 3588,
+      "sha256": "6e8ef9a218c25e77cf4790859687a7fe9300a5f50a0fecfe7086701815cf598c"
+    },
+    {
+      "path": "scripts/install_basic.ps1",
+      "bytes": 200,
+      "sha256": "9fea9ebc60bccc00f8bbe9e652662bec01b9757b875799992c1146225a0ac6c8"
+    },
+    {
+      "path": "scripts/install_locate_worker.ps1",
+      "bytes": 1279,
+      "sha256": "c3db0819245d117ae9c67cc9baff715792e13195d177966d114915e6c65a821c"
+    },
+    {
+      "path": "scripts/install_skill.py",
+      "bytes": 1254,
+      "sha256": "38511b07f849a5e291b8d24cb7661fb310443b2b7db87f9bd2e2468652527551"
+    },
+    {
+      "path": "skills/windows-computer-use/references/blender-ui-object-add.md",
+      "bytes": 1517,
+      "sha256": "5af8834572c37a40b1bcb2d3ac9eb8b55b46365ac4be000224ffe774c9523928"
+    },
+    {
+      "path": "skills/windows-computer-use/references/browser-handoff-x-search.md",
+      "bytes": 1625,
+      "sha256": "ba3ec1d4ad760a902d8ef550d583992e497f0da83fda7d5b8695eb0b06b8bf79"
+    },
+    {
+      "path": "skills/windows-computer-use/references/discord-search-workflow.md",
+      "bytes": 1841,
+      "sha256": "ad4c6efd257d84dfc001960df52c230a8f31f2e88b39d96314d75eb12e7a06ab"
+    },
+    {
+      "path": "skills/windows-computer-use/references/game-bar-disable-workflow.md",
+      "bytes": 640,
+      "sha256": "76edfe718eb85c56f0d9dc4b0db08f374b605aa73c99cad500dea8930acb9b9f"
+    },
+    {
+      "path": "skills/windows-computer-use/references/infographic-generation.md",
+      "bytes": 3073,
+      "sha256": "cf13bdf854a8ea219227ff9ca608a14db5ce43523aeb0607f2de2b8a2fa3a7a5"
+    },
+    {
+      "path": "skills/windows-computer-use/references/locateanything-loading.md",
+      "bytes": 1037,
+      "sha256": "113d45b67becdfb2b3ad74535974764e6ae93ac3794e2392e6afe2f8a60285cc"
+    },
+    {
+      "path": "skills/windows-computer-use/references/microsoft-paint-drawing.md",
+      "bytes": 2437,
+      "sha256": "267dfb5866fff372f708d985e839027d8ee3e8af3cc22fbe0f4aa1d9e48eab6b"
+    },
+    {
+      "path": "skills/windows-computer-use/references/microsoft-store-search-workflow.md",
+      "bytes": 790,
+      "sha256": "4f25d3ccafa461407c7d05d78ca82026f215822bfdd52cacbfba98dc661a66b5"
+    },
+    {
+      "path": "skills/windows-computer-use/references/photopea-facebook-cover-workflow.md",
+      "bytes": 797,
+      "sha256": "7c54c6ece26d6aaa0b45f7a11abe639ba5bfd0953afe467a23776df614f8a561"
+    },
+    {
+      "path": "skills/windows-computer-use/references/photos-image-filter-workflow.md",
+      "bytes": 2625,
+      "sha256": "a6715bcf69ae08ac7f58d3919f9b8d6f643e305be0411dc822611524698ad928"
+    },
+    {
+      "path": "skills/windows-computer-use/references/shotcut-audio-filters.md",
+      "bytes": 1602,
+      "sha256": "e30fce2a8fc49617dd0fa7d5099fa84ec6b474696967164f515b04d3facf721a"
+    },
+    {
+      "path": "skills/windows-computer-use/references/shotcut-audio-track.md",
+      "bytes": 1256,
+      "sha256": "45282836baa81134c19d41fd2f0a45d7ac156878bbb125c3e31df9eb95f5a724"
+    },
+    {
+      "path": "skills/windows-computer-use/references/shotcut-export-ffmpeg-fallback.md",
+      "bytes": 2730,
+      "sha256": "34885c4281965f940a84547dc56a2bc7abb25d52c67056f7208850993a562237"
+    },
+    {
+      "path": "skills/windows-computer-use/references/shotcut-media-import.md",
+      "bytes": 2504,
+      "sha256": "8029187113ef8cc2ed498db3f86bdd84f016f0d0416cd2ad07e5a1329f36650b"
+    },
+    {
+      "path": "skills/windows-computer-use/references/targeted-screenshot-capture.md",
+      "bytes": 996,
+      "sha256": "f9b02aef6d3f29246100fc8dc2a42ac93f05e7f7261be033546e1feb17b24141"
+    },
+    {
+      "path": "skills/windows-computer-use/references/tool-registration-fix.md",
+      "bytes": 3144,
+      "sha256": "5c53ece90fc3fc2474b7c33aaee38bbbd655d270073fa41f2d83e9e878dc04a6"
+    },
+    {
+      "path": "skills/windows-computer-use/references/verified-region-capture.md",
+      "bytes": 985,
+      "sha256": "3ce9846389f329455101eb1f748ae3e7bd48c05e08da9b4489b0d3a929ba73dc"
+    },
+    {
+      "path": "skills/windows-computer-use/SKILL.md",
+      "bytes": 12331,
+      "sha256": "5e1d28546bbef8e1434fb96c62d6aee88d789e726f354c58b9542e261adbee7e"
+    },
+    {
+      "path": "tests/test_plugin_registration.py",
+      "bytes": 765,
+      "sha256": "c2c6f591a8cee196000e3d8df6dea29e409088fed55b58704279eec7ce6c4a5b"
+    },
+    {
+      "path": "windows_computer_use.py",
+      "bytes": 47393,
+      "sha256": "39c71c7937b740a6df09ee82ce94a4a16a1baeecd6ce8b9b8b62abd24c8b0173"
+    },
+    {
+      "path": "windows_computer_use_locate_worker.py",
+      "bytes": 21928,
+      "sha256": "468139884df44089b8649ecbd421879825a7f92eba2ec03ae59237568bf882d1"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# Optional heavy visual-grounding dependencies for the isolated LocateAnything worker.
+# Install these into an external venv, not the live Hermes runtime venv.
+-r requirements-basic.txt
+opencv-python>=4.8.0
+transformers==4.57.1
+peft>=0.13.0
+accelerate>=0.33.0
+sentencepiece>=0.2.0
+lmdb>=1.5.0
+decord>=0.6.0
+hf_xet>=1.1.0
+# Choose the correct torch/torchvision build for your CPU/CUDA setup separately.
+# Example CUDA 12.1:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# Example CPU:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu

@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import os
+import platform
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+def check(name: str, ok: bool, detail: str = "") -> dict:
+    status = "OK" if ok else "FAIL"
+    print(f"[{status}] {name}{': ' + detail if detail else ''}")
+    return {"name": name, "ok": ok, "detail": detail}
+
+def import_ok(module: str) -> tuple[bool, str]:
+    try:
+        __import__(module)
+        return True, "imported"
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+class FakeCtx:
+    def __init__(self):
+        self.tools = []
+    def register_tool(self, **kwargs):
+        self.tools.append(kwargs["name"])
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate Hermes Windows Computer Use plugin")
+    parser.add_argument("--locate", action="store_true", help="also test LocateAnything worker availability")
+    parser.add_argument("--json", action="store_true", help="print JSON summary at end")
+    args = parser.parse_args()
+
+    results = []
+    results.append(check("OS is Windows", os.name == "nt", f"os.name={os.name}, platform={platform.platform()}"))
+    results.append(check("plugin.yaml exists", (ROOT / "plugin.yaml").exists(), str(ROOT / "plugin.yaml")))
+    results.append(check("root __init__.py exists", (ROOT / "__init__.py").exists(), str(ROOT / "__init__.py")))
+    results.append(check("tool module exists", (ROOT / "windows_computer_use.py").exists(), str(ROOT / "windows_computer_use.py")))
+    results.append(check("worker exists", (ROOT / "windows_computer_use_locate_worker.py").exists(), str(ROOT / "windows_computer_use_locate_worker.py")))
+    results.append(check("bundled skill exists", (ROOT / "skills" / "windows-computer-use" / "SKILL.md").exists()))
+
+    ctx = FakeCtx()
+    try:
+        import windows_computer_use
+        windows_computer_use.register_tools(ctx)
+        results.append(check("tool registration", len(ctx.tools) >= 20, f"{len(ctx.tools)} tools"))
+    except Exception as exc:
+        results.append(check("tool registration", False, f"{type(exc).__name__}: {exc}"))
+
+    for mod in ["pyautogui", "PIL", "pygetwindow"]:
+        ok, detail = import_ok(mod)
+        results.append(check(f"dependency {mod}", ok, detail))
+
+    if os.name == "nt":
+        try:
+            import pyautogui
+            pos = pyautogui.position()
+            results.append(check("PyAutoGUI mouse position", True, str(pos)))
+        except Exception as exc:
+            results.append(check("PyAutoGUI mouse position", False, f"{type(exc).__name__}: {exc}"))
+
+    if args.locate:
+        py = os.getenv("COMPUTER_USE_LOCATE_PYTHON")
+        results.append(check("COMPUTER_USE_LOCATE_PYTHON set", bool(py), py or "not set"))
+        if py:
+            import subprocess
+            proc = subprocess.run([py, str(ROOT / "windows_computer_use_locate_worker.py")], input=json.dumps({"action": "status"}), text=True, capture_output=True, timeout=30)
+            ok = proc.returncode == 0 and bool(proc.stdout.strip())
+            results.append(check("external worker status", ok, (proc.stdout or proc.stderr)[-500:]))
+
+    if args.json:
+        print(json.dumps({"ok": all(r["ok"] for r in results), "results": results}, indent=2))
+    return 0 if all(r["ok"] for r in results if not r["name"].startswith("dependency")) else 1
+
+if __name__ == "__main__":
+    raise SystemExit(main())
