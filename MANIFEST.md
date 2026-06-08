@@ -13,11 +13,11 @@ Expansion: **The Human Environment Intelligence Aperture**
 - `assets/windows-computer-use-infographic.png` — 1997355 bytes — `b6e6a535dbc9…`
 - `docs/PLUGIN_DESIGN.md` — 483 bytes — `5d2e2b94fc85…`
 - `LICENSE` — 1103 bytes — `b5fd60e4ac73…`
-- `MANIFEST.json` — 6091 bytes — `fcf32eb9a121…`
-- `MANIFEST.md` — 2687 bytes — `3ff1167cd6f2…`
+- `MANIFEST.json` — 6093 bytes — `fbb5b41f4041…`
+- `MANIFEST.md` — 2689 bytes — `8fefb28f4a28…`
 - `plugin.yaml` — 1131 bytes — `2670042e71be…`
 - `pyproject.toml` — 755 bytes — `ff60508f3c77…`
-- `README.md` — 9766 bytes — `5141d6c5bd8c…`
+- `README.md` — 9752 bytes — `836d8f171e3f…`
 - `requirements-basic.txt` — 179 bytes — `c11f39b518ff…`
 - `requirements-locate.txt` — 622 bytes — `b18e399a71c7…`
 - `scripts/doctor.py` — 3588 bytes — `6e8ef9a218c2…`

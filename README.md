@@ -140,7 +140,7 @@ computer_use_set_dry_run(false)  # enable live local desktop control
 ## Install from GitHub
 
 ```powershell
-hermes plugins install https://github.com/TREE-Ind/Hermes-Agent-UI-Computer-Use-Plugin.git --enable
+hermes plugins install https://github.com/TREE-Ind/THEIA-UI-Computer-Use.git --enable
 hermes tools enable windows_computer_use
 hermes skills list
 ```

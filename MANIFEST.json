@@ -2,7 +2,7 @@
   "name": "hermes-windows-computer-use",
   "display_name": "THEIA Computer Use",
   "expansion": "The Human Environment Intelligence Aperture",
-  "created_utc": "2026-06-08T20:56:26Z",
+  "created_utc": "2026-06-08T20:56:59Z",
   "file_count": 34,
   "files": [
     {
@@ -57,13 +57,13 @@
     },
     {
       "path": "MANIFEST.json",
-      "bytes": 6091,
-      "sha256": "fcf32eb9a121b9cbe23138ab3795e8dcce3268fbb2635bb86cf02bec834f43ca"
+      "bytes": 6093,
+      "sha256": "fbb5b41f4041df71e37562ffd4928eea326d5cecd79b604af4440634cf20e140"
     },
     {
       "path": "MANIFEST.md",
-      "bytes": 2687,
-      "sha256": "3ff1167cd6f26b1a8ee3cde61f410ff589e2d80caf4ca91d5de491d681d01216"
+      "bytes": 2689,
+      "sha256": "8fefb28f4a2891bc630c41bdaa2c324f26284f4aa37b3ce65fcbfbb803a92b7d"
     },
     {
       "path": "plugin.yaml",
@@ -77,8 +77,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 9766,
-      "sha256": "5141d6c5bd8cc0a94bb38f0036d753c8a908b55e6efb6bc190b59776705e9a33"
+      "bytes": 9752,
+      "sha256": "836d8f171e3f871ebb049562965a164c7769903da86ff25f92807ecc8f64e168"
     },
     {
       "path": "requirements-basic.txt",
