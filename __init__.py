@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 PLUGIN_NAME = "hermes-windows-computer-use"
@@ -86,6 +87,38 @@ def _install_basic_dependencies_if_missing() -> None:
         file=sys.stderr,
     )
 
+
+def _start_locate_worker_bootstrap() -> None:
+    """Start best-effort LocateAnything worker setup outside Hermes' venv.
+
+    Official plugin install/register APIs cover tools, skills, env prompts, and
+    lightweight pip dependencies. LocateAnything/Torch is intentionally heavy,
+    so THEIA installs it into an isolated worker venv in the background and the
+    toolset auto-discovers that interpreter when it is ready.
+
+    Set THEIA_AUTO_INSTALL_LOCATE_WORKER=false to disable this behavior.
+    """
+    if not _truthy_env("THEIA_AUTO_INSTALL_LOCATE_WORKER", "true"):
+        return
+    script = Path(__file__).resolve().parent / "scripts" / "setup_locate_worker.py"
+    if not script.exists():
+        return
+
+    def _run() -> None:
+        try:
+            subprocess.Popen(
+                [sys.executable, str(script), "--torch", os.getenv("THEIA_LOCATE_TORCH", "auto")],
+                cwd=str(Path(__file__).resolve().parent),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                close_fds=(os.name != "nt"),
+            )
+        except Exception as exc:
+            print(f"[THEIA] LocateAnything worker bootstrap failed to start: {exc}", file=sys.stderr)
+
+    threading.Thread(target=_run, name="theia-locate-worker-bootstrap", daemon=True).start()
+
 def _install_skill_if_missing() -> None:
     """Copy bundled SKILL.md docs into the active Hermes profile if absent.
 
@@ -146,5 +179,6 @@ def register(ctx):
     _register_bundled_skill(ctx)
     _install_skill_if_missing()
     _install_basic_dependencies_if_missing()
+    _start_locate_worker_bootstrap()
     windows_computer_use = _load_tool_module()
     windows_computer_use.register_tools(ctx)

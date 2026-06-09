@@ -54,9 +54,22 @@ def install_basic_requirements() -> tuple[bool, str]:
     return False, last
 
 
+def run_locate_setup(install: bool = False) -> tuple[bool, str]:
+    script = ROOT / "scripts" / "setup_locate_worker.py"
+    if not script.exists():
+        return False, f"missing {script}"
+    command = [sys.executable, str(script)]
+    if not install:
+        command.append("--status")
+    proc = subprocess.run(command, cwd=str(ROOT), text=True, capture_output=True, timeout=3600)
+    detail = (proc.stdout or proc.stderr or "").strip()[-2000:]
+    return proc.returncode == 0, detail
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate THEIA Computer Use plugin")
     parser.add_argument("--install-basic", action="store_true", help="install lightweight basic dependencies before checking")
+    parser.add_argument("--install-locate", action="store_true", help="install/repair the isolated LocateAnything worker venv before checking")
     parser.add_argument("--locate", action="store_true", help="also test LocateAnything worker availability")
     parser.add_argument("--json", action="store_true", help="print JSON summary at end")
     args = parser.parse_args()
@@ -65,6 +78,10 @@ def main() -> int:
     if args.install_basic:
         ok, detail = install_basic_requirements()
         results.append(check("install basic dependencies", ok, detail))
+
+    if args.install_locate:
+        ok, detail = run_locate_setup(install=True)
+        results.append(check("install LocateAnything worker", ok, detail))
 
     supported_os = sys.platform.startswith(("win32", "darwin", "linux"))
     results.append(check("OS is supported desktop", supported_os, f"os.name={os.name}, sys.platform={sys.platform}, platform={platform.platform()}"))
@@ -95,10 +112,11 @@ def main() -> int:
             results.append(check("PyAutoGUI mouse position", False, f"{type(exc).__name__}: {exc}"))
 
     if args.locate:
+        ok, detail = run_locate_setup(install=False)
+        results.append(check("LocateAnything worker status", ok, detail))
         py = os.getenv("COMPUTER_USE_LOCATE_PYTHON")
-        results.append(check("COMPUTER_USE_LOCATE_PYTHON set", bool(py), py or "not set"))
         if py:
-            import subprocess
+            results.append(check("COMPUTER_USE_LOCATE_PYTHON set", True, py))
             proc = subprocess.run([py, str(ROOT / "windows_computer_use_locate_worker.py")], input=json.dumps({"action": "status"}), text=True, capture_output=True, timeout=30)
             ok = proc.returncode == 0 and bool(proc.stdout.strip())
             results.append(check("external worker status", ok, (proc.stdout or proc.stderr)[-500:]))

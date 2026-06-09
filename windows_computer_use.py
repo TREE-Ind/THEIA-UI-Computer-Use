@@ -486,11 +486,64 @@ def _worker_script_path() -> Path:
     return Path(__file__).with_name("windows_computer_use_locate_worker.py")
 
 
+def _locate_worker_default_venv() -> Path:
+    if os.name == "nt" and os.getenv("LOCALAPPDATA"):
+        return Path(os.environ["LOCALAPPDATA"]) / "hermes" / "theia-ui-computer-use" / "locate-worker" / ".venv"
+    return _hermes_home() / "theia-ui-computer-use" / "locate-worker" / ".venv"
+
+
+def _venv_python(venv: Path) -> Path:
+    if os.name == "nt":
+        return venv / "Scripts" / "python.exe"
+    return venv / "bin" / "python"
+
+
+def _locate_setup_script() -> Path:
+    return Path(__file__).resolve().parent / "scripts" / "setup_locate_worker.py"
+
+
+def _locate_worker_status() -> Dict[str, Any]:
+    venv = _locate_worker_default_venv()
+    status_path = venv / "locate-worker-status.json"
+    data: Dict[str, Any] = {"target": str(venv), "python": str(_venv_python(venv)), "python_exists": _venv_python(venv).exists()}
+    if status_path.exists():
+        try:
+            loaded = json.loads(status_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                data.update(loaded)
+        except Exception as exc:
+            data["status_file_error"] = str(exc)
+    return data
+
+
+def _start_locate_worker_bootstrap() -> Dict[str, Any]:
+    if os.getenv("THEIA_AUTO_INSTALL_LOCATE_WORKER", "true").strip().lower() in {"0", "false", "no", "off"}:
+        return {"status": "disabled", "reason": "THEIA_AUTO_INSTALL_LOCATE_WORKER=false"}
+    script = _locate_setup_script()
+    if not script.exists():
+        return {"status": "error", "error": f"setup script not found: {script}"}
+    try:
+        subprocess.Popen(
+            [sys.executable, str(script), "--torch", os.getenv("THEIA_LOCATE_TORCH", "auto")],
+            cwd=str(Path(__file__).resolve().parent),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            close_fds=(os.name != "nt"),
+        )
+        status = _locate_worker_status()
+        status.update({"status": "installing", "setup_script": str(script)})
+        return status
+    except Exception as exc:
+        return {"status": "error", "error": str(exc), "setup_script": str(script)}
+
+
 def _external_python_path(explicit: Optional[str] = None) -> Optional[str]:
     candidates: List[str] = []
     for value in [explicit, os.getenv("COMPUTER_USE_LOCATE_PYTHON")]:
         if value:
             candidates.append(str(value))
+    candidates.append(str(_venv_python(_locate_worker_default_venv())))
     # Safe defaults: only use already-existing interpreters outside Hermes' venv.
     candidates.extend([r"C:\Python312\python.exe", r"C:\Python311\python.exe", "/usr/local/bin/python3", "/usr/bin/python3"])
     current = Path(sys.executable).resolve()
@@ -514,7 +567,7 @@ def _start_persistent_external_worker(python: Optional[str] = None) -> Dict[str,
     global _EXTERNAL_WORKER_PROC, _EXTERNAL_WORKER_PYTHON, _EXTERNAL_WORKER_QUEUE
     external_python = _external_python_path(python)
     if not external_python:
-        return {"status": "error", "backend": "external", "error": "No external Python configured/found. Set COMPUTER_USE_LOCATE_PYTHON to an isolated CUDA-capable interpreter outside the Hermes venv."}
+        return {"status": "error", "backend": "external", "error": "No LocateAnything worker Python is ready yet. THEIA auto-installs one outside the Hermes venv by default; set COMPUTER_USE_LOCATE_PYTHON manually or run scripts/setup_locate_worker.py if needed."}
     worker = _worker_script_path()
     if not worker.exists():
         return {"status": "error", "backend": "external", "error": f"Locate worker script not found: {worker}", "python": external_python}
@@ -583,7 +636,7 @@ def _external_worker_call(payload: Dict[str, Any], python: Optional[str] = None,
 def _run_external_locate_worker(payload: Dict[str, Any], python: Optional[str] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
     external_python = _external_python_path(python)
     if not external_python:
-        return {"status": "error", "backend": "external", "error": "No external Python configured/found. Set COMPUTER_USE_LOCATE_PYTHON to an isolated CUDA-capable interpreter outside the Hermes venv."}
+        return {"status": "error", "backend": "external", "error": "No LocateAnything worker Python is ready yet. THEIA auto-installs one outside the Hermes venv by default; set COMPUTER_USE_LOCATE_PYTHON manually or run scripts/setup_locate_worker.py if needed."}
     worker = _worker_script_path()
     if not worker.exists():
         return {"status": "error", "backend": "external", "error": f"Locate worker script not found: {worker}", "python": external_python}
@@ -681,11 +734,19 @@ _locate_model = _LocateModel()
 def _warm(device: Optional[str] = None, backend: Optional[str] = None, python: Optional[str] = None, **_: Any) -> Dict[str, Any]:
     pref = _locate_backend_preference(backend)
     if pref in {"external", "worker"}:
-        return _external_worker_call({"action": "warm", "device": device, "model_id": os.getenv("COMPUTER_USE_LOCATE_MODEL")}, python=python)
-    if pref == "auto" and _external_python_path(python):
+        external = _external_worker_call({"action": "warm", "device": device, "model_id": os.getenv("COMPUTER_USE_LOCATE_MODEL")}, python=python)
+        if external.get("status") == "error" and not _external_python_path(python):
+            external["bootstrap"] = _start_locate_worker_bootstrap()
+        return external
+    external_python = _external_python_path(python)
+    if pref == "auto" and external_python:
         external = _external_worker_call({"action": "warm", "device": device, "model_id": os.getenv("COMPUTER_USE_LOCATE_MODEL")}, python=python, timeout=90)
         if external.get("status") in {"loaded", "already_loaded"}:
             return external
+    elif pref == "auto":
+        bootstrap = _start_locate_worker_bootstrap()
+        if bootstrap.get("status") in {"installing", "in_progress"}:
+            return {"status": "installing", "backend": "external", "bootstrap": bootstrap, "fallback": "basic desktop controls remain available while LocateAnything installs"}
     internal = _locate_model.load(device=device)
     internal.setdefault("backend", "internal")
     return internal
@@ -724,7 +785,8 @@ def _locate(description: str, image_path: Optional[str] = None, threshold: float
             "max_new_tokens": int(os.getenv("COMPUTER_USE_LOCATE_MAX_NEW_TOKENS", "32")),
             **_locate_payload_options(_),
         }, python=python)]
-    if pref == "auto" and _external_python_path(python):
+    external_python = _external_python_path(python)
+    if pref == "auto" and external_python:
         external = _external_worker_call({
             "action": "locate",
             "description": description,
@@ -739,6 +801,10 @@ def _locate(description: str, image_path: Optional[str] = None, threshold: float
         if external.get("status") in {"found", "not_found"}:
             return [external]
         # Auto mode can fall back to internal. Explicit external mode returns the external error above.
+    elif pref == "auto":
+        bootstrap = _start_locate_worker_bootstrap()
+        if bootstrap.get("status") in {"installing", "in_progress"}:
+            return [{"status": "installing", "backend": "external", "description": description, "image_path": image_path, "bootstrap": bootstrap, "fallback": "basic desktop controls remain available while LocateAnything installs"}]
     load = _locate_model.load(device=device)
     if load.get("status") == "error":
         return [{"status": "error", "backend": "internal", "error": load.get("error"), "load": load}]
@@ -836,7 +902,7 @@ def register_tools(ctx=None) -> None:
     _PLUGIN_CTX = ctx
     try:
         _register("computer_use_capture_screen", "Capture the desktop screenshot and return an image path.", {"display_index": {"type": "integer", "default": 0}, "question": {"type": "string"}, "region": {"description": "Optional [x, y, width, height] capture region", "type": "array", "items": {"type": "integer"}}, "all_screens": {"type": "boolean", "default": False}}, [], _capture_screen)
-        _register("computer_use_warm", "Load LocateAnything-3B lazily. Supports isolated external CUDA worker via COMPUTER_USE_LOCATE_PYTHON; never installs or mutates the Hermes venv.", {"device": {"type": "string", "enum": ["auto", "cuda", "cpu"], "default": "auto"}, "backend": {"type": "string", "enum": ["auto", "internal", "external", "worker"], "default": "auto"}, "python": {"type": "string", "description": "Optional external Python interpreter for isolated LocateAnything worker"}}, [], _warm)
+        _register("computer_use_warm", "Load LocateAnything-3B lazily. Defaults to THEIA's isolated external worker, auto-bootstraps worker deps outside the Hermes venv, and falls back to basic controls while installing.", {"device": {"type": "string", "enum": ["auto", "cuda", "cpu"], "default": "auto"}, "backend": {"type": "string", "enum": ["auto", "internal", "external", "worker"], "default": "auto"}, "python": {"type": "string", "description": "Optional external Python interpreter for isolated LocateAnything worker"}}, [], _warm)
         _register("computer_use_locate", "Locate a UI element on the desktop using LocateAnything-3B visual grounding. Preferred for UI grounding; supports isolated external CUDA worker, point/box output, and coarse-refine strategy.", {"description": {"type": "string"}, "image_path": {"type": "string"}, "threshold": {"type": "number", "default": 0.3}, "device": {"type": "string", "enum": ["auto", "cuda", "cpu"], "default": "auto"}, "backend": {"type": "string", "enum": ["auto", "internal", "external", "worker"], "default": "auto"}, "python": {"type": "string", "description": "Optional external Python interpreter for isolated LocateAnything worker"}, "output_type": {"type": "string", "enum": ["point", "box"], "default": "point", "description": "Use point for click targets; box for region bounds"}, "task": {"type": "string", "enum": ["gui", "single", "multi", "text", "detect_text"], "default": "gui"}, "strategy": {"type": "string", "enum": ["auto", "direct", "point_refine", "refine", "coarse_refine"], "default": "direct"}, "region": {"type": "array", "items": {"type": "integer"}, "description": "Optional [x,y,width,height] crop in screenshot coordinates"}, "max_side": {"type": "integer", "default": 640}, "refine_max_side": {"type": "integer", "default": 1024}, "point_refine_radius": {"type": "integer", "default": 360}, "max_new_tokens": {"type": "integer", "default": 32}, "generation_mode": {"type": "string", "enum": ["fast", "hybrid", "slow"], "default": "hybrid"}, "prompt_style": {"type": "string", "enum": ["direct", "chat_template"], "default": "direct"}, "do_sample": {"type": "boolean", "default": False}, "dtype": {"type": "string", "enum": ["bfloat16", "float16", "float32", "bf16", "fp16", "fp32"], "default": "bfloat16"}}, ["description"], _locate)
         _register("computer_use_find_click", "Locate a described UI element and click its point/center. Preferred for UI grounding; supports isolated external CUDA worker and point output.", {"description": {"type": "string"}, "image_path": {"type": "string"}, "threshold": {"type": "number", "default": 0.3}, "device": {"type": "string", "enum": ["auto", "cuda", "cpu"], "default": "auto"}, "backend": {"type": "string", "enum": ["auto", "internal", "external", "worker"], "default": "auto"}, "python": {"type": "string", "description": "Optional external Python interpreter for isolated LocateAnything worker"}, "output_type": {"type": "string", "enum": ["point", "box"], "default": "point", "description": "Use point for click targets; box for region bounds"}, "task": {"type": "string", "enum": ["gui", "single", "multi", "text", "detect_text"], "default": "gui"}, "strategy": {"type": "string", "enum": ["auto", "direct", "point_refine", "refine", "coarse_refine"], "default": "direct"}, "region": {"type": "array", "items": {"type": "integer"}, "description": "Optional [x,y,width,height] crop in screenshot coordinates"}, "max_side": {"type": "integer", "default": 640}, "refine_max_side": {"type": "integer", "default": 1024}, "point_refine_radius": {"type": "integer", "default": 360}, "max_new_tokens": {"type": "integer", "default": 32}, "generation_mode": {"type": "string", "enum": ["fast", "hybrid", "slow"], "default": "hybrid"}, "prompt_style": {"type": "string", "enum": ["direct", "chat_template"], "default": "direct"}, "do_sample": {"type": "boolean", "default": False}, "dtype": {"type": "string", "enum": ["bfloat16", "float16", "float32", "bf16", "fp16", "fp32"], "default": "bfloat16"}, "button": {"type": "string", "default": "left"}}, ["description"], _find_click)
         _register("computer_use_move", "Move the mouse cursor to an absolute coordinate without clicking.", {"x": {"type": "integer"}, "y": {"type": "integer"}, "duration": {"type": "number", "default": 0.0}, "tween": {"type": "string", "default": "linear"}}, ["x", "y"], _move)

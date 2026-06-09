@@ -19,9 +19,12 @@ from `plugin.yaml` and install the lightweight basic dependencies into the
 Python environment currently running Hermes Agent. THEIA also keeps a
 best-effort first-load fallback for older Hermes builds or blocked installs.
 
-This only covers the basic desktop-control stack: PyAutoGUI, Pillow,
-PyGetWindow, and pywin32 on Windows only. Set `THEIA_AUTO_INSTALL_BASIC_DEPS=false`
-to disable this in audited or air-gapped environments.
+This covers the basic desktop-control stack: PyAutoGUI, Pillow, PyGetWindow,
+and pywin32 on Windows only. LocateAnything is also bootstrapped automatically
+into an isolated worker venv outside Hermes. Set
+`THEIA_AUTO_INSTALL_BASIC_DEPS=false` or
+`THEIA_AUTO_INSTALL_LOCATE_WORKER=false` to disable automatic dependency setup
+in audited or air-gapped environments.
 
 If auto-install is disabled or blocked, run:
 

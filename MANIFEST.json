@@ -1,6 +1,5 @@
 {
-  "name": "hermes-windows-computer-use",
-  "generated_at": "2026-06-09T00:57:37+00:00",
+  "version": 1,
   "files": [
     {
       "path": ".gitignore",
@@ -14,18 +13,18 @@
     },
     {
       "path": "README.md",
-      "bytes": 10707,
-      "sha256": "f54da6cf36473b0519c0cecd79e429271458570e0434cb96ac5721fc9881d226"
+      "bytes": 12096,
+      "sha256": "cece6d72d592e430011dfeb7e8d12d599efa7f9e7eacbe259496c7641e63ee5e"
     },
     {
       "path": "__init__.py",
-      "bytes": 5558,
-      "sha256": "e3aec9aff62872e982ce7050984d598cb7ba9fab8fbf6c2ab9c9052bfa51f924"
+      "bytes": 7004,
+      "sha256": "92af6a10529e3bc2d034335d13664f0acf5290df70c078117f41396e3546c5ee"
     },
     {
       "path": "after-install.md",
-      "bytes": 1250,
-      "sha256": "8fc023d44f9d3fdaaeb6768d47980b6a3037deb5e3a529f7f6b427da85052e96"
+      "bytes": 1409,
+      "sha256": "2e97aec7288d12e53d58ee14200b7258c1fc8bd80386ea770647bb99472bba56"
     },
     {
       "path": "assets/windows-computer-use-infographic.png",
@@ -54,13 +53,13 @@
     },
     {
       "path": "requirements-locate.txt",
-      "bytes": 622,
-      "sha256": "b18e399a71c7116f7da024c4fd42b0fcd7154746c6c1542da0f83c6d1a3e3390"
+      "bytes": 541,
+      "sha256": "a22815060ce6b35ef0b75adf0552a52fbd9d1ccccb7e5aeb784e432d9d1e3582"
     },
     {
       "path": "scripts/doctor.py",
-      "bytes": 4843,
-      "sha256": "04bcda35894058d089bc656aa3163785843ab2d0c6eb5f5f32cb6bedd853f573"
+      "bytes": 5738,
+      "sha256": "03c19cfcd0827dbfc98c92b01e5b56715695b9ce60d3d950098562050af3d653"
     },
     {
       "path": "scripts/install_basic.ps1",
@@ -69,8 +68,8 @@
     },
     {
       "path": "scripts/install_locate_worker.ps1",
-      "bytes": 1279,
-      "sha256": "c3db0819245d117ae9c67cc9baff715792e13195d177966d114915e6c65a821c"
+      "bytes": 671,
+      "sha256": "c33b4a414a76cf2de12fed7ed64bba8b69ea0e4dec1d4ba37585f137372f8a1c"
     },
     {
       "path": "scripts/install_skill.py",
@@ -78,9 +77,14 @@
       "sha256": "38511b07f849a5e291b8d24cb7661fb310443b2b7db87f9bd2e2468652527551"
     },
     {
+      "path": "scripts/setup_locate_worker.py",
+      "bytes": 7213,
+      "sha256": "5bd1e65250122e032cad8448dacb637c1a672bb8aae3a88e68088243a9d6fcd7"
+    },
+    {
       "path": "skills/windows-computer-use/SKILL.md",
-      "bytes": 5281,
-      "sha256": "c2dd8eadbe54e146996043014d1aac6a633bd3886b5b86026a40017e5ebf755e"
+      "bytes": 5418,
+      "sha256": "3b091fb7a594a15a4d838a9b61a1bfcd81bb79a036d04c10c5231e3631d640bd"
     },
     {
       "path": "skills/windows-computer-use/references/agent-operating-loop.md",
@@ -89,8 +93,8 @@
     },
     {
       "path": "skills/windows-computer-use/references/fresh-install-checklist.md",
-      "bytes": 2250,
-      "sha256": "6ce432fdd6f8ab04ea9465b08288fe46d9473de660b52c0f91873f1bf58d3e11"
+      "bytes": 2376,
+      "sha256": "d1953a70a871e2f9552461ad4b4f0716e94251d315ee4c7f6330075384b31536"
     },
     {
       "path": "skills/windows-computer-use/references/gestures-drag-scroll.md",
@@ -99,8 +103,8 @@
     },
     {
       "path": "skills/windows-computer-use/references/locateanything-worker-setup.md",
-      "bytes": 2249,
-      "sha256": "ff01e946f7b21c55d15560fa6fbd61639976406d4af480cfa373d2955ced144a"
+      "bytes": 2631,
+      "sha256": "548efada6f10aca713b79d673f1bbcf48887177e8fb918c3a9d585b96c691f56"
     },
     {
       "path": "skills/windows-computer-use/references/starter-workflows.md",
@@ -129,13 +133,13 @@
     },
     {
       "path": "tests/test_plugin_registration.py",
-      "bytes": 4190,
-      "sha256": "62ab2684a79cb6f11629ada4e44be40fb5ab7c11155f5179db4699fa43d69d38"
+      "bytes": 6233,
+      "sha256": "905cd055cefc96fd80db7b9712b4c5d7ad7e69a2781b5584e03b1ed254a0451a"
     },
     {
       "path": "windows_computer_use.py",
-      "bytes": 47520,
-      "sha256": "96b66787baf095b196318289bc1acf0cddd39eca8ede60c431698a4be9cb5b72"
+      "bytes": 50903,
+      "sha256": "7a5b787daa75bf042217b023a55078f8692c867d0f0689e725b435abdd663982"
     },
     {
       "path": "windows_computer_use_locate_worker.py",

@@ -72,12 +72,12 @@ Only after the user approves live control:
 
 Do not use destructive keyboard shortcuts or click unknown dialogs during smoke tests.
 
-## 5. Decide whether LocateAnything is needed
+## 5. Verify LocateAnything default grounding
 
-Basic mode can operate by coordinates, windows, pixels, and screenshots. Use LocateAnything when you need natural-language visual grounding like:
+THEIA uses LocateAnything for natural-language visual grounding by default. Basic mode can still operate by coordinates, windows, pixels, and screenshots while the isolated worker is installing or unavailable. Use LocateAnything for targets like:
 
 - “Click the blue Save button.”
 - “Find the search box.”
 - “Locate the timeline playhead.”
 
-If LocateAnything is not installed, basic desktop automation can still work. The locate tools should return a clear JSON error instead of hiding the whole toolset.
+If LocateAnything is still installing or unavailable, basic desktop automation can still work. The locate tools should return a clear JSON status/error instead of hiding the whole toolset.

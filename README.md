@@ -188,24 +188,47 @@ Manual fallback from the installed plugin directory:
 python -m pip install -r requirements-basic.txt
 ```
 
-### LocateAnything mode: optional and isolated
+### LocateAnything mode: automatic, default, and isolated
 
-Visual grounding is intentionally isolated. Do **not** force CUDA PyTorch into
-the live Hermes venv. Create an external worker venv instead:
+THEIA uses LocateAnything visual grounding as the default path for
+`computer_use_locate` and `computer_use_find_click`. Basic coordinate, pixel,
+mouse, and keyboard tools remain available as the fallback while visual
+grounding is installing or unavailable.
+
+The heavy visual-grounding stack is **not** installed into the live Hermes venv.
+On plugin load, THEIA starts a best-effort background bootstrap that creates an
+isolated worker venv and installs LocateAnything dependencies there. The toolset
+auto-discovers that worker when it is ready.
+
+Default worker location:
+
+- Windows: `%LOCALAPPDATA%\hermes\theia-ui-computer-use\locate-worker\.venv`
+- macOS/Linux: `$HERMES_HOME/theia-ui-computer-use/locate-worker/.venv`
+
+Manual repair or eager install from the plugin directory:
 
 ```powershell
-.\scripts\install_locate_worker.ps1 -Python C:\Python312\python.exe -Cuda cu121
+python .\scripts\setup_locate_worker.py --torch auto
+python .\scripts\doctor.py --install-locate --locate
 ```
 
-Then set:
+Torch install policy is controlled by `THEIA_LOCATE_TORCH`:
+
+- `auto` — default; CUDA 12.1 wheel when `nvidia-smi` is available, CPU/default otherwise
+- `cpu` — force PyTorch CPU wheels where applicable
+- `cu121`, `cu124`, `cu126` — force a CUDA wheel index
+- `default` — use PyPI/default platform wheels
+- `skip` — install non-torch LocateAnything deps only
+
+Opt out for audited, air-gapped, or manually managed environments:
 
 ```powershell
-setx COMPUTER_USE_LOCATE_BACKEND external
-setx COMPUTER_USE_LOCATE_PYTHON "$env:LOCALAPPDATA\hermes\windows-computer-use\.venv\Scripts\python.exe"
-setx COMPUTER_USE_LOCATE_PERSISTENT true
+setx THEIA_AUTO_INSTALL_LOCATE_WORKER false
 ```
 
-Start a new Hermes session after changing environment variables.
+If you already manage a worker venv yourself, set `COMPUTER_USE_LOCATE_PYTHON`
+to that interpreter. `COMPUTER_USE_LOCATE_BACKEND` defaults to `auto`, which
+prefers the isolated worker and falls back only when needed.
 
 ## Toolset
 
@@ -229,10 +252,11 @@ plugin registers these tools:
 
 1. Open/focus the app.
 2. Capture the screen.
-3. Locate or find-click the target.
-4. Act with mouse/keyboard primitives.
-5. Verify the result with a new capture, active-window check, or pixel check.
-6. Repeat until done.
+3. Locate or find-click the target with LocateAnything visual grounding.
+4. If LocateAnything is still installing/unavailable, fall back to basic coordinate/pixel primitives.
+5. Act with mouse/keyboard primitives.
+6. Verify the result with a new capture, active-window check, or pixel check.
+7. Repeat until done.
 
 ## Safety notes
 
@@ -256,17 +280,18 @@ manually with:
 python .\scripts\doctor.py --install-basic
 ```
 
-Optional LocateAnything check:
+LocateAnything worker install/status check:
 
 ```powershell
-python .\scripts\doctor.py --locate
+python .\scripts\doctor.py --install-locate --locate
 ```
 
 ## Skill documentation
 
-The plugin bundles `skills/windows-computer-use/SKILL.md` and reference docs.
-On plugin load, it copies the skill into the active Hermes profile only if the
-skill does not already exist. Existing user-customized skill docs are not
+The plugin officially registers the bundled skill through `ctx.register_skill`,
+so Hermes exposes it as a plugin skill. It also copies
+`skills/windows-computer-use/SKILL.md` into the active profile as a
+compatibility convenience only if the skill does not already exist. Existing user-customized skill docs are not
 overwritten.
 
 To force-install the bundled skill:

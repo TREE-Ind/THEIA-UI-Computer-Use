@@ -3,7 +3,7 @@ name: windows-computer-use
 description: |
   THEIA — The Human Environment Intelligence Aperture. Cross-platform UI perception
   and computer use: capture the screen, locate UI elements, click, type, drag,
-  scroll, verify state, and optionally use LocateAnything-3B visual grounding.
+  scroll, verify state, and use LocateAnything-3B visual grounding by default.
 version: 1.1.0
 platforms: [windows, macos, linux]
 metadata:
@@ -89,9 +89,11 @@ Load these references as needed:
 
 ## LocateAnything guidance
 
-LocateAnything is optional. The basic action layer should work without it.
-If visual grounding is needed, prefer an isolated external worker so CUDA/PyTorch
-dependencies do not mutate or break the live Hermes runtime.
+Use LocateAnything visual grounding by default for described UI targets. THEIA
+auto-bootstraps an isolated external worker venv outside the live Hermes runtime
+so CUDA/PyTorch dependencies do not mutate or break Hermes. Basic screenshot,
+coordinate, pixel, mouse, and keyboard tools are the fallback while the worker is
+still installing or unavailable.
 
 Good UI-clicking defaults:
 
