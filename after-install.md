@@ -20,7 +20,7 @@ Python environment currently running Hermes Agent. THEIA also keeps a
 best-effort first-load fallback for older Hermes builds or blocked installs.
 
 This only covers the basic desktop-control stack: PyAutoGUI, Pillow,
-PyGetWindow, and pywin32 on Windows. Set `THEIA_AUTO_INSTALL_BASIC_DEPS=false`
+PyGetWindow, and pywin32 on Windows only. Set `THEIA_AUTO_INSTALL_BASIC_DEPS=false`
 to disable this in audited or air-gapped environments.
 
 If auto-install is disabled or blocked, run:

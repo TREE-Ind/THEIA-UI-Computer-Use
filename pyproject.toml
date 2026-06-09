@@ -1,7 +1,7 @@
 [project]
 name = "hermes-windows-computer-use"
 version = "0.1.0"
-description = "Hermes Agent plugin for Windows desktop computer use with PyAutoGUI and optional LocateAnything-3B visual grounding."
+description = "Hermes Agent plugin for cross-platform desktop computer use with PyAutoGUI and optional LocateAnything-3B visual grounding."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

@@ -32,7 +32,7 @@ python scripts/doctor.py
 
 Expected signs:
 
-- OS is Windows.
+- OS is Windows, macOS, or Linux with a usable GUI session.
 - `plugin.yaml`, `__init__.py`, tool module, and worker exist.
 - Tool registration reports 20+ tools.
 - `pyautogui`, `PIL`, and `pygetwindow` import.

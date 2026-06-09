@@ -1,4 +1,4 @@
-"""Hermes Windows Computer Use plugin.
+"""Hermes desktop Computer Use plugin.
 
 Registers the ``windows_computer_use`` toolset from a standalone Hermes
 plugin and makes the bundled skill available in the active Hermes profile.

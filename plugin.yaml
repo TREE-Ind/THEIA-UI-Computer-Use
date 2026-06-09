@@ -2,7 +2,7 @@ manifest_version: 1
 name: hermes-windows-computer-use
 version: 0.1.0
 kind: standalone
-description: "THEIA — The Human Environment Intelligence Aperture: visual perception and UI computer use for Windows desktops, with screenshots, mouse/keyboard actions, visual grounding, and optional LocateAnything-3B worker."
+description: "THEIA — The Human Environment Intelligence Aperture: visual perception and UI computer use for Windows, macOS, and Linux desktops, with screenshots, mouse/keyboard actions, visual grounding, and optional LocateAnything-3B worker."
 author: Hermes Agent + Joshua
 provides_tools:
   - computer_use_capture_screen
@@ -34,6 +34,8 @@ provides_tools:
 provides_hooks: []
 platforms:
   - windows
+  - macos
+  - linux
 pip_dependencies:
   - "pyautogui>=0.9.54"
   - "pillow>=10.0.0"

@@ -3,8 +3,9 @@
 **THEIA — The Human Environment Intelligence Aperture**
 
 A self-contained UI computer-use plugin that gives **Hermes Agent** a visual
-perception and control layer for Windows: screenshots, window focus, mouse,
-keyboard, drag/scroll gestures, pixel checks, and optional LocateAnything-3B
+perception and control layer for Windows, macOS, and Linux: screenshots,
+window focus, mouse, keyboard, drag/scroll gestures, pixel checks, and optional
+LocateAnything-3B
 visual UI grounding.
 
 ![THEIA Computer Use infographic](assets/windows-computer-use-infographic.png)
@@ -23,7 +24,7 @@ browser automation hook, or the workflow crosses multiple desktop applications.
 Hermes Agent already has language reasoning, tool calling, skills, memory,
 file access, terminal access, web research, scheduled jobs, subagents, and
 optional messaging-platform access. THEIA adds the missing **visual interface
-aperture**: a way for Hermes Agent to perceive and operate normal Windows
+aperture**: a way for Hermes Agent to perceive and operate normal desktop
 software through the same screen a human uses.
 
 In practice, THEIA contributes two things:
@@ -93,14 +94,14 @@ output file. This makes GUI automation less brittle than blind click scripts.
 THEIA can be used for **completely private local UI computer use** when paired
 with a local/private Hermes Agent setup.
 
-The plugin itself runs on the Windows machine and controls the local desktop
+The plugin itself runs on the desktop machine and controls the local desktop
 with local Python libraries such as PyAutoGUI and Pillow. Basic mode does not
 require cloud visual grounding, remote browser sessions, or third-party UI
 automation services.
 
 For private operation:
 
-1. Run Hermes Agent locally on the Windows machine.
+1. Run Hermes Agent locally on the Windows, macOS, or Linux machine.
 2. Use a local or private model/provider for Hermes Agent if prompts and screen
    descriptions must stay private.
 3. Keep THEIA in **basic mode** for local screenshots, mouse, keyboard, window,
@@ -173,7 +174,7 @@ Installed automatically when missing:
 - `pyautogui`
 - `pillow`
 - `pygetwindow`
-- `pywin32` on Windows
+- `pywin32` on Windows only
 
 Opt out for audited or air-gapped environments:
 
@@ -208,7 +209,9 @@ Start a new Hermes session after changing environment variables.
 
 ## Toolset
 
-The plugin registers these tools under the `windows_computer_use` toolset:
+The stable toolset id remains `windows_computer_use` for compatibility,
+but the PyAutoGUI-backed basic controls support Windows, macOS, and Linux. The
+plugin registers these tools:
 
 - `computer_use_capture_screen`
 - `computer_use_warm`

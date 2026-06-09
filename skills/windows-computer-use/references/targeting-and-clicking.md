@@ -1,6 +1,6 @@
 # Targeting and Clicking
 
-Use this when the user asks Hermes to click, select, open, toggle, or press something visible on the Windows desktop.
+Use this when the user asks Hermes to click, select, open, toggle, or press something visible on the desktop.
 
 ## Preferred targeting order
 

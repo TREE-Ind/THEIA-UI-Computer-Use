@@ -1,14 +1,14 @@
 ---
 name: windows-computer-use
 description: |
-  THEIA — The Human Environment Intelligence Aperture. Windows UI perception
+  THEIA — The Human Environment Intelligence Aperture. Cross-platform UI perception
   and computer use: capture the screen, locate UI elements, click, type, drag,
   scroll, verify state, and optionally use LocateAnything-3B visual grounding.
 version: 1.1.0
-platforms: [windows]
+platforms: [windows, macos, linux]
 metadata:
   hermes:
-    tags: [windows, desktop, computer-use, gui, visual]
+    tags: [desktop, computer-use, gui, visual, windows, macos, linux]
     category: desktop
     related_skills: [hermes-agent]
 ---
@@ -17,7 +17,7 @@ metadata:
 
 **THEIA — The Human Environment Intelligence Aperture**
 
-Use this skill when an agent needs visual perception and control of the Windows
+Use this skill when an agent needs visual perception and control of the
 desktop through the `windows_computer_use` toolset installed by the
 `hermes-windows-computer-use` plugin.
 
@@ -50,7 +50,7 @@ see → target → act → verify → repeat
 
 Prefer `computer_use_locate` / `computer_use_find_click` over generic
 `vision_analyze` for interactive desktop control. Use generic image analysis
-only when the Windows toolset is unavailable or when the task is purely visual
+only when the desktop toolset is unavailable or when the task is purely visual
 understanding, not controlling the desktop.
 
 ## Tool quick reference

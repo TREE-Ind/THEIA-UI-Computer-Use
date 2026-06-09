@@ -66,7 +66,8 @@ def main() -> int:
         ok, detail = install_basic_requirements()
         results.append(check("install basic dependencies", ok, detail))
 
-    results.append(check("OS is Windows", os.name == "nt", f"os.name={os.name}, platform={platform.platform()}"))
+    supported_os = sys.platform.startswith(("win32", "darwin", "linux"))
+    results.append(check("OS is supported desktop", supported_os, f"os.name={os.name}, sys.platform={sys.platform}, platform={platform.platform()}"))
     results.append(check("plugin.yaml exists", (ROOT / "plugin.yaml").exists(), str(ROOT / "plugin.yaml")))
     results.append(check("root __init__.py exists", (ROOT / "__init__.py").exists(), str(ROOT / "__init__.py")))
     results.append(check("tool module exists", (ROOT / "windows_computer_use.py").exists(), str(ROOT / "windows_computer_use.py")))
@@ -85,7 +86,7 @@ def main() -> int:
         ok, detail = import_ok(mod)
         results.append(check(f"dependency {mod}", ok, detail))
 
-    if os.name == "nt":
+    if supported_os:
         try:
             import pyautogui
             pos = pyautogui.position()

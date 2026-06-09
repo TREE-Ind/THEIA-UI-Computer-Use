@@ -1,9 +1,6 @@
 {
   "name": "hermes-windows-computer-use",
-  "display_name": "THEIA Computer Use",
-  "expansion": "The Human Environment Intelligence Aperture",
-  "created_utc": "2026-06-08T23:06:14Z",
-  "file_count": 28,
+  "generated_at": "2026-06-09T00:57:37+00:00",
   "files": [
     {
       "path": ".gitignore",
@@ -11,14 +8,24 @@
       "sha256": "7609529e1b8cc594e9ed2d0570ef7826afb332250d847754ddc1bceedf407c86"
     },
     {
+      "path": "LICENSE",
+      "bytes": 1103,
+      "sha256": "b5fd60e4ac739adeefaf7caf77aa8717de874ca060c276e23685a3ca49f2c3f6"
+    },
+    {
+      "path": "README.md",
+      "bytes": 10707,
+      "sha256": "f54da6cf36473b0519c0cecd79e429271458570e0434cb96ac5721fc9881d226"
+    },
+    {
       "path": "__init__.py",
       "bytes": 5558,
-      "sha256": "d4cf79c1aee8761f1314c56f41a02c71f1109609ef9c0239eb13dc84f982e8a3"
+      "sha256": "e3aec9aff62872e982ce7050984d598cb7ba9fab8fbf6c2ab9c9052bfa51f924"
     },
     {
       "path": "after-install.md",
-      "bytes": 1245,
-      "sha256": "871ac9d210b3c0d1684497521ecebb25699f103507d3e5d1e27ea02a5134cdb4"
+      "bytes": 1250,
+      "sha256": "8fc023d44f9d3fdaaeb6768d47980b6a3037deb5e3a529f7f6b427da85052e96"
     },
     {
       "path": "assets/windows-computer-use-infographic.png",
@@ -31,24 +38,14 @@
       "sha256": "5d2e2b94fc85cc761ea061ef2e3c84c18a7dd1f946bddb952317173aca70f46d"
     },
     {
-      "path": "LICENSE",
-      "bytes": 1103,
-      "sha256": "b5fd60e4ac739adeefaf7caf77aa8717de874ca060c276e23685a3ca49f2c3f6"
-    },
-    {
       "path": "plugin.yaml",
-      "bytes": 1273,
-      "sha256": "cade04f8e5e583d4b5a5c58ea260c8a3e33f8ae33e160941fbaa69d22877a035"
+      "bytes": 1313,
+      "sha256": "0aeced37a5532d85b2f374455386d6940921ce39c16f5a48cde47fded000ac2e"
     },
     {
       "path": "pyproject.toml",
-      "bytes": 755,
-      "sha256": "ff60508f3c775a208d867250f07e807e6a432151b4258ca6bb3176cb60e87877"
-    },
-    {
-      "path": "README.md",
-      "bytes": 10558,
-      "sha256": "718c92418f345708996d0700bbde926506fdde27675b7dfa5b423d036e364830"
+      "bytes": 762,
+      "sha256": "cd9e541cd180358da6acd2129f93c8a7ec7d6e3d861a2ac998f88694b0f358c9"
     },
     {
       "path": "requirements-basic.txt",
@@ -62,8 +59,8 @@
     },
     {
       "path": "scripts/doctor.py",
-      "bytes": 4736,
-      "sha256": "a2035a8126b95a25ede43bbd33ba6175800c0b8cdf70a13f0de63c03c1fc4034"
+      "bytes": 4843,
+      "sha256": "04bcda35894058d089bc656aa3163785843ab2d0c6eb5f5f32cb6bedd853f573"
     },
     {
       "path": "scripts/install_basic.ps1",
@@ -81,14 +78,19 @@
       "sha256": "38511b07f849a5e291b8d24cb7661fb310443b2b7db87f9bd2e2468652527551"
     },
     {
+      "path": "skills/windows-computer-use/SKILL.md",
+      "bytes": 5281,
+      "sha256": "c2dd8eadbe54e146996043014d1aac6a633bd3886b5b86026a40017e5ebf755e"
+    },
+    {
       "path": "skills/windows-computer-use/references/agent-operating-loop.md",
       "bytes": 1966,
       "sha256": "731d1da3ac1cfc63c3d6839fc195b203d1bf881c4f7b2f3bf8621686fdf51f6a"
     },
     {
       "path": "skills/windows-computer-use/references/fresh-install-checklist.md",
-      "bytes": 2207,
-      "sha256": "ac9a86411e5e4ef20243d0ecb650d9647611dc05675583f251185c3465dc6b06"
+      "bytes": 2250,
+      "sha256": "6ce432fdd6f8ab04ea9465b08288fe46d9473de660b52c0f91873f1bf58d3e11"
     },
     {
       "path": "skills/windows-computer-use/references/gestures-drag-scroll.md",
@@ -107,8 +109,8 @@
     },
     {
       "path": "skills/windows-computer-use/references/targeting-and-clicking.md",
-      "bytes": 2224,
-      "sha256": "18951ae2d43571a487de52d2a0264f2e90f2d0fce5aebc998a429cfe81aa0aee"
+      "bytes": 2216,
+      "sha256": "0d3c137aa1273c5cba797998d0b5c4dc5f9501031a34a0a24251aa4a5bcd446e"
     },
     {
       "path": "skills/windows-computer-use/references/text-keyboard-shortcuts.md",
@@ -126,19 +128,14 @@
       "sha256": "aa348f5b840a92b0ce163ab1fa0f34a34381b94c9c6b69612a53b3a8e0ecb6e0"
     },
     {
-      "path": "skills/windows-computer-use/SKILL.md",
-      "bytes": 5254,
-      "sha256": "ffe3634fd4e45781a13d3f267f57261d5f7d0fb4e7252fff800d94d9d30c3761"
-    },
-    {
       "path": "tests/test_plugin_registration.py",
-      "bytes": 3287,
-      "sha256": "f78f9ce3452c13f0945c1bac4e4100b4bfe242aa8829eeca7320e1e5b848c6ce"
+      "bytes": 4190,
+      "sha256": "62ab2684a79cb6f11629ada4e44be40fb5ab7c11155f5179db4699fa43d69d38"
     },
     {
       "path": "windows_computer_use.py",
-      "bytes": 47393,
-      "sha256": "39c71c7937b740a6df09ee82ce94a4a16a1baeecd6ce8b9b8b62abd24c8b0173"
+      "bytes": 47520,
+      "sha256": "96b66787baf095b196318289bc1acf0cddd39eca8ede60c431698a4be9cb5b72"
     },
     {
       "path": "windows_computer_use_locate_worker.py",

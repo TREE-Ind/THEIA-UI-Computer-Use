@@ -3,8 +3,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
 
 class FakeCtx:
     def __init__(self):
@@ -38,6 +41,24 @@ def test_tool_module_registers_expected_tools():
     assert "computer_use_release_all" in names
     assert len(names) >= 20
     assert all(t["toolset"] == "windows_computer_use" for t in ctx.tools)
+
+
+def test_manifest_advertises_cross_platform_pyautogui_support():
+    manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text(encoding="utf-8"))
+
+    assert {"windows", "macos", "linux"}.issubset(set(manifest["platforms"]))
+    assert "pyautogui>=0.9.54" in manifest["pip_dependencies"]
+    assert "pywin32>=306; platform_system == 'Windows'" in manifest["pip_dependencies"]
+
+def test_requirement_check_allows_pyautogui_desktop_platforms(monkeypatch):
+    import windows_computer_use
+
+    for platform_name in ("win32", "darwin", "linux"):
+        monkeypatch.setattr(windows_computer_use.sys, "platform", platform_name)
+        assert windows_computer_use.check_windows_computer_use_requirements() is True
+
+    monkeypatch.setattr(windows_computer_use.sys, "platform", "freebsd")
+    assert windows_computer_use.check_windows_computer_use_requirements() is False
 
 def test_plugin_entrypoint_registers_tools_and_bundled_skill(monkeypatch, tmp_path):
     # Avoid mutating the real Hermes profile during plugin import smoke tests.
