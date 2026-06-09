@@ -292,7 +292,7 @@ python .\scripts\doctor.py --install-locate --locate
 
 The plugin officially registers the bundled skill through `ctx.register_skill`,
 so Hermes exposes it as a plugin skill. It also copies
-`skills/windows-computer-use/SKILL.md` into the active profile as a
+`skills/theia-ui-computer-use/SKILL.md` into the active profile as a
 compatibility convenience only if the skill does not already exist. Existing user-customized skill docs are not
 overwritten.
 

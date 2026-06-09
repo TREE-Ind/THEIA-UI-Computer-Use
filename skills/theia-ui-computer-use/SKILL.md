@@ -1,5 +1,5 @@
 ---
-name: windows-computer-use
+name: theia-ui-computer-use
 description: |
   THEIA — The Human Environment Intelligence Aperture. Cross-platform UI perception
   and computer use: capture the screen, locate UI elements, click, type, drag,

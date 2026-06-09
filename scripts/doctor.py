@@ -92,7 +92,7 @@ def main() -> int:
     results.append(check("root __init__.py exists", (ROOT / "__init__.py").exists(), str(ROOT / "__init__.py")))
     results.append(check("tool module exists", (ROOT / "windows_computer_use.py").exists(), str(ROOT / "windows_computer_use.py")))
     results.append(check("worker exists", (ROOT / "windows_computer_use_locate_worker.py").exists(), str(ROOT / "windows_computer_use_locate_worker.py")))
-    results.append(check("bundled skill exists", (ROOT / "skills" / "windows-computer-use" / "SKILL.md").exists()))
+    results.append(check("bundled skill exists", (ROOT / "skills" / "theia-ui-computer-use" / "SKILL.md").exists()))
 
     ctx = FakeCtx()
     try:

@@ -135,10 +135,10 @@ def _install_skill_if_missing() -> None:
         from hermes_constants import get_hermes_home
     except Exception:
         return
-    source = Path(__file__).resolve().parent / "skills" / "windows-computer-use"
+    source = Path(__file__).resolve().parent / "skills" / "theia-ui-computer-use"
     if not source.exists():
         return
-    target = Path(get_hermes_home()) / "skills" / "desktop" / "windows-computer-use"
+    target = Path(get_hermes_home()) / "skills" / "desktop" / "theia-ui-computer-use"
     if target.exists():
         return
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -171,13 +171,13 @@ def _register_bundled_skill(ctx) -> None:
     Hermes exposes plugin skills as namespaced skills, e.g.
     ``skill_view(\"plugin:skill\")``. The non-destructive profile copy remains
     as a compatibility convenience for users who expect the unqualified
-    ``windows-computer-use`` skill to appear after install.
+    ``theia-ui-computer-use`` skill to appear after install.
     """
-    source = Path(__file__).resolve().parent / "skills" / "windows-computer-use"
+    source = Path(__file__).resolve().parent / "skills" / "theia-ui-computer-use"
     skill_md = source / "SKILL.md"
     if not skill_md.exists() or not hasattr(ctx, "register_skill"):
         return
-    ctx.register_skill("windows-computer-use", skill_md)
+    ctx.register_skill("theia-ui-computer-use", skill_md)
 
 
 def register(ctx):

@@ -66,7 +66,7 @@ def test_manifest_declares_official_plugin_surfaces():
     assert manifest["kind"] == "standalone"
     assert "computer_use_locate" in manifest["provides_tools"]
     assert "computer_use_find_click" in manifest["provides_tools"]
-    assert (ROOT / "skills" / "windows-computer-use" / "SKILL.md").exists()
+    assert (ROOT / "skills" / "theia-ui-computer-use" / "SKILL.md").exists()
 
 def test_requirement_check_allows_pyautogui_desktop_platforms(monkeypatch):
     import windows_computer_use
@@ -93,7 +93,7 @@ def test_plugin_entrypoint_registers_tools_and_bundled_skill(monkeypatch, tmp_pa
     assert len(names) >= 20
     assert ctx.skills
     skill_name, skill_path = ctx.skills[0]
-    assert skill_name == "windows-computer-use"
+    assert skill_name == "theia-ui-computer-use"
     assert skill_path.name == "SKILL.md"
     assert skill_path.exists()
 

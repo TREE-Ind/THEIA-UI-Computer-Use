@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "generated_from": "git ls-files",
+  "file_count": 32,
   "files": [
     {
       "path": ".gitignore",
@@ -12,14 +13,24 @@
       "sha256": "b5fd60e4ac739adeefaf7caf77aa8717de874ca060c276e23685a3ca49f2c3f6"
     },
     {
+      "path": "MANIFEST.json",
+      "bytes": 5278,
+      "sha256": "14c42e01d83640b8a487c87bce83d528eda48cc7537660a719769b7d20da836a"
+    },
+    {
+      "path": "MANIFEST.md",
+      "bytes": 3634,
+      "sha256": "aff14f9a9885cdbc5af1fad6aa7af8286103889fdc3d6cfb61487577f5c84fc8"
+    },
+    {
       "path": "README.md",
-      "bytes": 12165,
-      "sha256": "76d2bbd5aaaa45fd80cf62223bc7774d24427328c7d0429c8d09a4f2921feffb"
+      "bytes": 12166,
+      "sha256": "397a052afb91abb846d223446fbc13edcf8692a3353f453b0c097dfbaef07e10"
     },
     {
       "path": "__init__.py",
-      "bytes": 7291,
-      "sha256": "20509e04fa5ac50eca7fac033db4872bcaaf52e3fb2a00507cc14a1b5af06e09"
+      "bytes": 7296,
+      "sha256": "e609f24be9bef45e465a62275fb70742b181532383b31388af88366b88b1289b"
     },
     {
       "path": "after-install.md",
@@ -63,8 +74,8 @@
     },
     {
       "path": "scripts/doctor.py",
-      "bytes": 5921,
-      "sha256": "9d09f25357e17e306c6e8b481938b256818282a9a0354e334137ace398f61964"
+      "bytes": 5922,
+      "sha256": "f0a4f7f6fd24b13118f00854e0c9c8652bac159c3e07f10512eff80ae8302a25"
     },
     {
       "path": "scripts/install_basic.ps1",
@@ -78,8 +89,8 @@
     },
     {
       "path": "scripts/install_skill.py",
-      "bytes": 1254,
-      "sha256": "38511b07f849a5e291b8d24cb7661fb310443b2b7db87f9bd2e2468652527551"
+      "bytes": 1257,
+      "sha256": "87ba2603a56ffa04d532f093e89e5b383f4ba65c3f6d3d3ccf1e4eb00e75c2d4"
     },
     {
       "path": "scripts/setup_locate_worker.py",
@@ -87,59 +98,59 @@
       "sha256": "5bd1e65250122e032cad8448dacb637c1a672bb8aae3a88e68088243a9d6fcd7"
     },
     {
-      "path": "skills/windows-computer-use/SKILL.md",
-      "bytes": 5418,
-      "sha256": "3b091fb7a594a15a4d838a9b61a1bfcd81bb79a036d04c10c5231e3631d640bd"
+      "path": "skills/theia-ui-computer-use/SKILL.md",
+      "bytes": 5419,
+      "sha256": "44080b2823953ed0518b30dc11f0df7d22ddb8357022c85e206a5d4e40b3d4ae"
     },
     {
-      "path": "skills/windows-computer-use/references/agent-operating-loop.md",
+      "path": "skills/theia-ui-computer-use/references/agent-operating-loop.md",
       "bytes": 1966,
       "sha256": "731d1da3ac1cfc63c3d6839fc195b203d1bf881c4f7b2f3bf8621686fdf51f6a"
     },
     {
-      "path": "skills/windows-computer-use/references/fresh-install-checklist.md",
+      "path": "skills/theia-ui-computer-use/references/fresh-install-checklist.md",
       "bytes": 2376,
       "sha256": "d1953a70a871e2f9552461ad4b4f0716e94251d315ee4c7f6330075384b31536"
     },
     {
-      "path": "skills/windows-computer-use/references/gestures-drag-scroll.md",
+      "path": "skills/theia-ui-computer-use/references/gestures-drag-scroll.md",
       "bytes": 1630,
       "sha256": "bf1f14bff46c8f4e185492e52aed6f8240fa1d40944db6fe58fc001dc7e5575e"
     },
     {
-      "path": "skills/windows-computer-use/references/locateanything-worker-setup.md",
+      "path": "skills/theia-ui-computer-use/references/locateanything-worker-setup.md",
       "bytes": 2631,
       "sha256": "548efada6f10aca713b79d673f1bbcf48887177e8fb918c3a9d585b96c691f56"
     },
     {
-      "path": "skills/windows-computer-use/references/starter-workflows.md",
+      "path": "skills/theia-ui-computer-use/references/starter-workflows.md",
       "bytes": 1899,
       "sha256": "8a2af12efefd05f4916ac465eae35e814fbe4f8f9a3230d2d8b242bf31ad8cd2"
     },
     {
-      "path": "skills/windows-computer-use/references/targeting-and-clicking.md",
+      "path": "skills/theia-ui-computer-use/references/targeting-and-clicking.md",
       "bytes": 2216,
       "sha256": "0d3c137aa1273c5cba797998d0b5c4dc5f9501031a34a0a24251aa4a5bcd446e"
     },
     {
-      "path": "skills/windows-computer-use/references/text-keyboard-shortcuts.md",
+      "path": "skills/theia-ui-computer-use/references/text-keyboard-shortcuts.md",
       "bytes": 1617,
       "sha256": "f47ec5fcb440fc238d0649d2c0e01447fbe846fa1656c4402683dd7f1540f883"
     },
     {
-      "path": "skills/windows-computer-use/references/troubleshooting.md",
+      "path": "skills/theia-ui-computer-use/references/troubleshooting.md",
       "bytes": 2196,
       "sha256": "6ce97d0057870081865e5bc3e78c520b3d24e71371ff7cc3046f86da4aa0d019"
     },
     {
-      "path": "skills/windows-computer-use/references/verification-and-safety.md",
+      "path": "skills/theia-ui-computer-use/references/verification-and-safety.md",
       "bytes": 1968,
       "sha256": "aa348f5b840a92b0ce163ab1fa0f34a34381b94c9c6b69612a53b3a8e0ecb6e0"
     },
     {
       "path": "tests/test_plugin_registration.py",
-      "bytes": 7554,
-      "sha256": "310f11a9e7d09d656ff0192e41d0f022e03a9431523c01b43f2149630734466b"
+      "bytes": 7556,
+      "sha256": "4a912c850822aeebaf1c358449428fdb6fad5c0c991245cfaacc32f032185218"
     },
     {
       "path": "windows_computer_use.py",
