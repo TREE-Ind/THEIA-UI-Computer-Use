@@ -64,6 +64,17 @@ computer_use_get_active_window()
 computer_use_capture_screen()
 ```
 
+## Locate clicks wrong place (cpp / worker backend)
+
+The locate-anything **CLI returns boxes in preprocess target space** (patch-grid padded dimensions), not 0–1000 token coords. An older worker incorrectly re-scaled small values and dropped thumbnail→full-screen mapping, producing tiny boxes and wrong clicks.
+
+After updating `hermes-windows-computer-use`:
+
+1. Restart the gateway (`hermes gateway restart`) or start a **new session** so the plugin reloads.
+2. The persistent locate worker reloads when the worker script changes; if results still show a temp `image_path` and no `coordinate_space: source_image_pixels`, restart Hermes.
+3. Prefer `strategy="coarse_refine"`, `output_type="box"`, and explicit descriptions.
+4. Validate: `computer_use_locate` should return `source_size` matching the screenshot and centers in full-image pixels.
+
 ## Wrong thing clicked
 
 Do not repeat immediately. Instead:

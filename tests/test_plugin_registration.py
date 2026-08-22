@@ -38,6 +38,8 @@ def test_tool_module_registers_expected_tools():
     assert "computer_use_capture_screen" in names
     assert "computer_use_locate" in names
     assert "computer_use_find_click" in names
+    assert "computer_use_batch" in names
+    assert "computer_use_execute_code" in names
     assert "computer_use_release_all" in names
     assert len(names) >= 20
     assert all(t["toolset"] == "windows_computer_use" for t in ctx.tools)
@@ -66,6 +68,8 @@ def test_manifest_declares_official_plugin_surfaces():
     assert manifest["kind"] == "standalone"
     assert "computer_use_locate" in manifest["provides_tools"]
     assert "computer_use_find_click" in manifest["provides_tools"]
+    assert "computer_use_batch" in manifest["provides_tools"]
+    assert "computer_use_execute_code" in manifest["provides_tools"]
     assert (ROOT / "skills" / "theia-ui-computer-use" / "SKILL.md").exists()
 
 def test_requirement_check_allows_pyautogui_desktop_platforms(monkeypatch):
@@ -126,6 +130,7 @@ def test_locate_worker_bootstrap_starts_outside_hermes_venv(monkeypatch):
 def test_locate_tool_auto_bootstraps_when_worker_missing(monkeypatch):
     import windows_computer_use
 
+    monkeypatch.setenv("COMPUTER_USE_LOCATE_BACKEND", "auto")
     monkeypatch.setattr(windows_computer_use, "_external_python_path", lambda explicit=None: None)
     monkeypatch.setattr(windows_computer_use, "_start_locate_worker_bootstrap", lambda: {"status": "installing", "python": "worker-python"})
 
@@ -182,3 +187,111 @@ def test_basic_dependency_auto_install_respects_opt_out(monkeypatch):
     module._install_basic_dependencies_if_missing()
 
     assert calls == []
+
+
+def test_safe_batch_preflights_all_steps_before_running_any(monkeypatch):
+    import windows_computer_use
+
+    calls = []
+    monkeypatch.setattr(windows_computer_use, "_result", lambda status="ok", **extra: {"status": status, **extra})
+    monkeypatch.setattr(windows_computer_use, "_click", lambda **kwargs: calls.append(("click", kwargs)) or {"status": "ok"})
+
+    result = windows_computer_use._computer_use_batch([
+        {"action": "click", "risk": "non_destructive", "x": 100, "y": 200, "target_hint": "search field", "safe_purpose": "focus_input"},
+        {"action": "click", "risk": "non_destructive", "x": 100, "y": 250, "target_hint": "Submit response", "safe_purpose": "focus_input"},
+    ])
+
+    assert result["status"] == "blocked"
+    assert result["blocked_step"] == 1
+    assert calls == []
+
+
+def test_safe_batch_runs_valid_steps_in_order_without_echoing_typed_text(monkeypatch):
+    import windows_computer_use
+
+    calls = []
+    monkeypatch.setattr(windows_computer_use, "_result", lambda status="ok", **extra: {"status": status, **extra})
+    for name in ("_move", "_type"):
+        monkeypatch.setattr(
+            windows_computer_use,
+            name,
+            lambda _name=name, **kwargs: calls.append((_name, kwargs)) or {"status": "ok"},
+        )
+
+    result = windows_computer_use._computer_use_batch([
+        {"action": "move", "risk": "non_destructive", "x": 100, "y": 200},
+        {"action": "type", "risk": "non_destructive", "text": "project notes", "field_hint": "local search field"},
+    ])
+
+    assert result["status"] == "ok"
+    assert result["executed_steps"] == 2
+    assert [name for name, _kwargs in calls] == ["_move", "_type"]
+    assert all("project notes" not in str(step) for step in result["steps"])
+
+
+def test_safe_batch_stops_after_a_failed_step(monkeypatch):
+    import windows_computer_use
+
+    calls = []
+    monkeypatch.setattr(windows_computer_use, "_result", lambda status="ok", **extra: {"status": status, **extra})
+    monkeypatch.setattr(windows_computer_use, "_move", lambda **kwargs: calls.append("move") or {"status": "error", "error": "target changed"})
+    monkeypatch.setattr(windows_computer_use, "_click", lambda **kwargs: calls.append("click") or {"status": "ok"})
+
+    result = windows_computer_use._computer_use_batch([
+        {"action": "move", "risk": "non_destructive", "x": 100, "y": 200},
+        {"action": "click", "risk": "non_destructive", "x": 100, "y": 200, "target_hint": "search field", "safe_purpose": "focus_input"},
+    ])
+
+    assert result["status"] == "stopped"
+    assert result["stopped_at"] == 0
+    assert calls == ["move"]
+
+
+def test_execute_code_compiles_safe_loops_and_batches_without_running_python(monkeypatch):
+    import windows_computer_use
+
+    chunks = []
+    monkeypatch.setattr(windows_computer_use, "_result", lambda status="ok", **extra: {"status": status, **extra})
+    monkeypatch.setattr(
+        windows_computer_use,
+        "_computer_use_batch",
+        lambda steps, **kwargs: chunks.append((steps, kwargs)) or {"status": "ok", "executed_steps": len(steps)},
+    )
+
+    result = windows_computer_use._computer_use_execute_code(
+        "for _ in range(3):\n    move(x=10, y=10)\nwait(duration_ms=100)",
+        static_screen=True,
+    )
+
+    assert result["status"] == "ok"
+    assert result["planned_steps"] == 4
+    assert result["executed_steps"] == 4
+    assert len(chunks) == 1
+    assert [step["action"] for step in chunks[0][0]] == ["move", "move", "move", "wait"]
+
+
+def test_execute_code_preflights_the_complete_program_before_any_chunk(monkeypatch):
+    import windows_computer_use
+
+    calls = []
+    monkeypatch.setattr(windows_computer_use, "_result", lambda status="ok", **extra: {"status": status, **extra})
+    monkeypatch.setattr(windows_computer_use, "_computer_use_batch", lambda *args, **kwargs: calls.append(args))
+
+    result = windows_computer_use._computer_use_execute_code(
+        "click(x=100, y=200, target_hint='search field', safe_purpose='focus_input')\nclick(x=100, y=240, target_hint='Submit response', safe_purpose='focus_input')",
+        static_screen=True,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blocked_step"] == 1
+    assert calls == []
+
+
+def test_execute_code_rejects_arbitrary_python(monkeypatch):
+    import windows_computer_use
+
+    monkeypatch.setattr(windows_computer_use, "_result", lambda status="ok", **extra: {"status": status, **extra})
+    result = windows_computer_use._computer_use_execute_code("__import__('os').system('whoami')", static_screen=True)
+
+    assert result["status"] == "blocked"
+    assert "unsupported action" in result["error"]

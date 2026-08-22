@@ -1,44 +1,57 @@
+author: Hermes Agent + Joshua
+description: "THEIA — The Human Environment Intelligence Aperture: virtual-desktop\
+  \ capture, fused stage observation, guarded caches, bounded dynamic workflows,\
+  \ and persistent raw-RGB LocateAnything C++/Q5 CUDA grounding."
+kind: standalone
 manifest_version: 1
 name: hermes-windows-computer-use
-version: 0.1.0
-kind: standalone
-description: "THEIA — The Human Environment Intelligence Aperture: visual perception and UI computer use for Windows, macOS, and Linux desktops, with screenshots, mouse/keyboard actions, visual grounding, and optional LocateAnything-3B worker."
-author: Hermes Agent + Joshua
-provides_tools:
-  - computer_use_capture_screen
-  - computer_use_warm
-  - computer_use_locate
-  - computer_use_find_click
-  - computer_use_move
-  - computer_use_move_relative
-  - computer_use_click
-  - computer_use_double_click
-  - computer_use_mouse_down
-  - computer_use_mouse_up
-  - computer_use_type
-  - computer_use_press
-  - computer_use_key_down
-  - computer_use_key_up
-  - computer_use_hotkey
-  - computer_use_scroll
-  - computer_use_drag
-  - computer_use_drag_relative
-  - computer_use_drag_path
-  - computer_use_release_all
-  - computer_use_pixel
-  - computer_use_pixel_matches
-  - computer_use_open_app
-  - computer_use_focus_window
-  - computer_use_get_active_window
-  - computer_use_set_dry_run
-provides_hooks: []
-platforms:
-  - windows
-  - macos
-  - linux
 pip_dependencies:
-  - "pyautogui>=0.9.54"
-  - "pillow>=10.0.0"
-  - "pygetwindow>=0.0.9"
-  - "python3-xlib>=0.15; platform_system == 'Linux'"
-  - "pywin32>=306; platform_system == 'Windows'"
+- pyautogui>=0.9.54
+- pillow>=10.0.0
+- pygetwindow>=0.0.9
+- python3-xlib>=0.15; platform_system == 'Linux'
+- pywin32>=306; platform_system == 'Windows'
+platforms:
+- windows
+- macos
+- linux
+provides_hooks: []
+provides_tools:
+- computer_use_capture_screen
+- computer_use_observe_stage
+- computer_use_dynamic_workflow
+- computer_use_warm
+- computer_use_locate
+- computer_use_locate_batch
+- computer_use_remember_groundings
+- computer_use_reuse_groundings
+- computer_use_calibrate_grid
+- computer_use_grid_cells
+- computer_use_forget_grounding
+- computer_use_find_click
+- computer_use_find_drag
+- computer_use_move
+- computer_use_move_relative
+- computer_use_click
+- computer_use_double_click
+- computer_use_batch
+- computer_use_execute_code
+- computer_use_mouse_down
+- computer_use_mouse_up
+- computer_use_type
+- computer_use_press
+- computer_use_key_down
+- computer_use_key_up
+- computer_use_hotkey
+- computer_use_scroll
+- computer_use_drag
+- computer_use_drag_relative
+- computer_use_drag_path
+- computer_use_release_all
+- computer_use_pixel
+- computer_use_pixel_matches
+- computer_use_open_app
+- computer_use_focus_window
+- computer_use_get_active_window
+- computer_use_set_dry_run
+version: 0.3.0

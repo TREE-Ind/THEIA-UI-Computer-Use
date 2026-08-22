@@ -239,10 +239,15 @@ but the PyAutoGUI-backed basic controls support Windows, macOS, and Linux. The
 plugin registers these tools:
 
 - `computer_use_capture_screen`
+- `computer_use_observe_stage` — capture one immutable ROI and optionally ground all targets
+- `computer_use_dynamic_workflow` — recapture and independently ground up to eight safe stages
 - `computer_use_warm`
 - `computer_use_locate`
+- `computer_use_locate_batch` — resolve up to 16 targets from one immutable screenshot
+- `computer_use_remember_groundings`, `computer_use_reuse_groundings` — visually guarded coordinate reuse
 - `computer_use_find_click`
 - `computer_use_move`, `computer_use_click`, `computer_use_double_click`
+- `computer_use_batch` — a prevalidated sequence of safe GUI primitives
 - `computer_use_type`, `computer_use_press`, `computer_use_hotkey`
 - `computer_use_scroll`, `computer_use_drag`, `computer_use_drag_path`
 - `computer_use_mouse_down`, `computer_use_mouse_up`, `computer_use_release_all`
@@ -260,11 +265,79 @@ plugin registers these tools:
 6. Verify the result with a new capture, active-window check, or pixel check.
 7. Repeat until done.
 
+## Safe multi-step execution
+
+`computer_use_batch` removes tool-call round trips for a short sequence whose
+targets and consequences are already known. It preflights **every** step before
+performing any action, then executes them in order and stops on the first
+failure by default. Results include a per-step audit trail and never echo typed
+text back to the model.
+
+Every step must explicitly set `risk: "non_destructive"`. The batch permits
+only cursor movement, left clicks/double clicks, non-sensitive text entry,
+navigation keys, scroll, window focus, and short waits. It refuses held mouse
+gestures, app launches, arbitrary hotkeys, destructive keypresses, credentials,
+security/account changes, and target hints or symbolic target descriptions
+containing actions such as Delete, Submit, Send, Pay, Confirm, or Purchase.
+Direct use of those actions continues to require an agent inspection and
+appropriate user confirmation.
+
+Example — focus a search field, type a harmless query, and move to the results
+without submitting anything:
+
+```json
+{
+  "steps": [
+    {"action": "click", "risk": "non_destructive", "x": 500, "y": 220,
+     "target_hint": "search field"},
+    {"action": "type", "risk": "non_destructive", "text": "project notes",
+     "field_hint": "local search field"},
+    {"action": "press", "risk": "non_destructive", "keys": "tab"}
+  ]
+}
+```
+
+The batch is a speed optimization, not a replacement for visual verification:
+capture and inspect the resulting UI after it completes. Do not use it when a
+step may submit, send, buy, delete, authenticate, change an account/security
+setting, or otherwise cause an external or irreversible effect.
+
+### Shared-screenshot locating and symbolic actions
+
+`computer_use_locate_batch` accepts unique `{id, description}` targets and one
+immutable screenshot. `mode: "exact"` keeps independent prompt semantics while
+reusing the native vision encoding. `mode: "one_pass"` uses LocateAnything's
+multi-category parallel box decoding (PBD). The safe default is `exact`. `auto`
+only becomes eligible after the same normalized target set has produced two
+successful one-pass label mappings and no failures; any missing, duplicated, or
+ambiguous label immediately falls back to exact and disables speculation for
+that set.
+
+`computer_use_batch` may also receive the same `targets`, set
+`static_screen: true`, and reference them from click steps with `target_id` in
+place of `x`/`y`. The entire action plan is safety-checked first; all referenced
+targets are then resolved before action one. If any target is missing, no GUI
+action runs. Use this only when every control is simultaneously visible and no
+step changes layout. A navigation, scroll, dialog/menu opening, resize, or
+layout-changing edit requires a new screenshot and a new stage.
+
+`computer_use_observe_stage` fuses active-window/client/desktop capture and
+multi-target grounding without taking action. `computer_use_dynamic_workflow`
+extends the same safety model to changing interfaces: it preflights the complete
+workflow before capture one, then captures fresh pixels and independently
+grounds each of at most eight stages. Each action stage must assert
+`static_screen: true`; consequential targets, credentials, submissions,
+payments, authentication, permissions, arbitrary code, files, and network
+access remain blocked.
+
 ## Safety notes
 
 - PyAutoGUI is live by default unless `COMPUTER_USE_DRY_RUN=true`.
 - Always pair `mouse_down` with `mouse_up`, or call `release_all` if interrupted.
-- Coordinate-taking tools validate that points are on-screen.
+- Coordinate-taking tools validate against the complete Win32 virtual desktop,
+  including negative monitor origins. Scoped captures clip decoration overflow.
+- Grounding defaults to a high-resolution active-window ROI; taskbar/desktop
+  targets retain a primary-desktop capture so relevant chrome is not cropped.
 - Broken LocateAnything/CUDA dependencies should not hide the basic toolset.
 
 ## Doctor
@@ -308,3 +381,100 @@ Keep this plugin as a plugin directory with root `__init__.py`; do not install
 a separate `tools/windows_computer_use/` package beside a flat
 `tools/windows_computer_use.py` file. In Hermes' built-in tool discovery, that
 package-shadowing pattern can prevent tool registration.
+
+## LocateAnything Upgrade (cpp backend)
+
+This fork/upgrade replaces the default python LocateAnything-3B (torch/transformers) with the C++ port:
+
+- https://github.com/mudler/locate-anything.cpp
+- Accuracy-preserving Q5 GGUF model: `locate-anything-q5_0.gguf`
+
+### Changes
+- Default `COMPUTER_USE_LOCATE_BACKEND=cpp`
+- The JSONL worker loads `locate_anything.dll` once through `ctypes`, keeping one
+  serialized Q5 engine and CUDA context resident. It falls back to the CLI if
+  the DLL is unavailable or fails.
+- ABI 3 accepts caller-owned RGB8 pixels. The worker sends resized RGB directly
+  to the resident DLL, avoiding temporary PNG/file IPC and native image decode.
+- Exact batch requests verify the immutable capture digest, preprocess each
+  crop/resize stage once, prepare ViT/projector features once, and decode
+  independent prompts against that stage. Exact screenshot+prompt results use a
+  bounded LRU cache; repeated identical batches return without inference.
+- Reusable grounding coordinates are guarded by native window handle, process,
+  DPI, client bounds, and low-cost visual anchor patches, not geometry alone.
+- Every worker request carries a request ID. The parent serializes the complete
+  send/receive transaction, discards stale responses, and restarts the worker on
+  timeout or code/config changes.
+- Native and worker responses expose phase and wall-clock telemetry. The CLI and
+  C API both honor bounded `max_new_tokens`; an empty bounded DLL result retries
+  decoding at 256 tokens without repeating image preparation.
+- No torch required for the grounding worker when using cpp.
+- DLL, CLI, and Q5 model deployed to
+  `%LOCALAPPDATA%\hermes\theia-ui-computer-use\cpp\`
+
+Benchmark the persistent JSONL path and coordinate parity with:
+
+```powershell
+python .\scripts\benchmark_locate_runtime.py --image screen.png `
+  --target search="Search field" --target tab="Top tab" --runs 5 `
+  --backend cpp --write-baseline .\benchmark-baseline.json
+```
+
+Re-run with `--baseline .\benchmark-baseline.json`; the command returns nonzero
+if labels or final integer coordinates exceed `--parity-tolerance`.
+- Env vars supported:
+  - `COMPUTER_USE_LOCATE_BACKEND=cpp|auto|external|internal`
+  - `COMPUTER_USE_LOCATE_CPP_CLI=...`
+  - `COMPUTER_USE_LOCATE_CPP_DLL=...`
+  - `COMPUTER_USE_LOCATE_MODEL=...` (point to the gguf)
+  - `COMPUTER_USE_LOCATE_CUDA_BIN=...` (optional CUDA runtime DLL directory)
+
+The python locate worker is still available as fallback when `backend=external` or `auto` falls back.
+
+For this Windows source checkout, `build_persistent_cuda.bat` configures the
+CUDA 11.7/SM86 shared build, builds it, runs the fixture-available CTest group,
+and executes a real Q5 CLI smoke test. The optional f32/reference-dump parity
+tests remain registered but require their separate fixture corpus. After the Q5
+model is in `models\`, `deploy_persistent_cuda.bat` installs the validated DLL,
+CLI, and a hard-linked model copy. The worker adds `CUDA_PATH\bin`, an explicit
+`COMPUTER_USE_LOCATE_CUDA_BIN`, or the standard CUDA 11.7 bin directory to the
+Windows DLL search path. The original Python setup remains available as the
+`external` fallback.
+
+
+## CUDA Acceleration for LocateAnything (cpp backend)
+
+The locate-anything.cpp upgrade supports CUDA for much faster grounding on NVIDIA GPUs (RTX 3080+ etc.).
+
+### Build the CLI with CUDA
+
+1. Ensure your Visual Studio 2022 has the CUDA workload or the CUDA installer has "Visual Studio Integration" selected for VS 2022.
+
+2. From a "x64 Native Tools Command Prompt for VS 2022" (or after running VsDevCmd.bat), run:
+
+```powershell
+cd C:\Users\mulle\dev\locate-anything.cpp
+# or from the cloned dir
+
+rmdir /s /q build 2>nul
+cmake -B build -DLA_BUILD_CLI=ON -DLA_BUILD_TESTS=OFF -DLA_GGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES="86"
+cmake --build build --config Release -j
+```
+
+(See the attached image from the repo for the exact table of CMake options, including `LA_GGML_CUDA`.)
+
+The resulting binary:
+`build\examples\cli\Release\locate-anything-cli.exe`
+
+3. Replace the one in your Hermes install:
+```powershell
+copy build\examples\cli\Release\locate-anything-cli.exe "%LOCALAPPDATA%\hermes\theia-ui-computer-use\cpp\"
+```
+
+4. The worker will automatically use the new binary (same path). GPU will be used if available (no code change needed).
+
+A helper build script is provided in the locate-anything.cpp clone: `build_with_cuda.bat` (run it from the VS dev prompt).
+
+Test with `COMPUTER_USE_LOCATE_BACKEND=cpp` (already default) and a locate call. It should be significantly faster than the CPU version.
+
+If you see "No CUDA toolset found" during cmake, re-install CUDA toolkit with VS integration enabled.
