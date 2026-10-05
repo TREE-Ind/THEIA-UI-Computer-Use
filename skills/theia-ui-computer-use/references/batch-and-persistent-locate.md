@@ -1,5 +1,19 @@
 # Batch and Persistent Locate Reference
 
+## Default native THEIA acquisition
+
+For a known target, omit image_path and call the fused THEIA tool directly.
+Fresh pixels are acquired internally in memory, not by a separate agent screenshot
+round trip. Use locate_batch/observe_stage for grounding, find_click or symbolic
+batch for safe input, and verify_target for known postconditions. Private local
+UI is allowed; Jev is never implicit. Exact current pixels/window identity gate
+symbolic actions. A changed/ambiguous screen requires a new stage, not stale ROI.
+Only unknown-content visual reasoning or deliverable evidence requires explicit
+computer_use_capture_screen followed by honest image inspection. The older
+explicit-image recipes below are diagnostics, not mandatory acquisition steps.
+
+
+
 Use this reference when designing a multi-target stage, diagnosing native
 LocateAnything persistence, or deciding whether GUI actions may safely share a
 batch.

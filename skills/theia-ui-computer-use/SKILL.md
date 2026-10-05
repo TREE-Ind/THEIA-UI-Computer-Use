@@ -24,9 +24,48 @@ restricted action programs, and verifies the resulting state.
 Use registered `computer_use_*` tools instead of ad-hoc PyAutoGUI or desktop
 scripts whenever the plugin is available.
 
+## Local invocation and transport recovery
+
+Use **one local call per invocation** of `tool_call`: its `calls` array must
+contain exactly one THEIA entry. A two-entry local array is rejected before
+execution. Do not confuse router batching with `computer_use_batch.steps` or
+`computer_use_locate_batch.targets` (those arrays are supported by the plugin).
+
+```json
+{"calls":[{"name":"computer_use_prefetch_frame","arguments":{"status_only":true}}]}
+```
+
+A second tool needs a second invocation. An independent-call parallel wrapper
+may contain separate one-entry `tool_call` invocations only for truly independent
+read-only work. Never parallelize warm/recovery with grounding or actions, or
+parallelize dependent desktop actions. Never change the core router contract.
+
+`worker_admission_timeout` is busy/deadline exhaustion **before submission**, not
+a broken transport: inspect status and explicitly retry with a fresh stage only
+when the worker is available. Do not recover a healthy busy worker.
+`stale_frame` after `response_drained=true` means the correlated speculative
+response was drained but is too old to use, not a cancellation or quarantine.
+The two-second freshness TTL still gates admission/usability; it cannot cancel
+a native preparation already submitted. Transport drain has a separate bounded
+worker timeout and retains exclusive serialization until completion.
+
+For `worker_transport_timeout`, `worker_transport_error`, or
+`worker_transport_quarantined`, stop actions. `native_call_cancelled=false` is
+honest: timing out did not stop native work. Never silently warm, retry live
+unbounded, switch to another engine, or restart the gateway. After source
+activation, read `computer_use_worker_status` without screenshots. With current
+user authorization invoke `computer_use_recover_worker(authorize=true)` in the
+foreground: it disposes ONLY the owned quarantined isolated worker, confirms
+exit before clearing quarantine, and starts no replacement. If busy or exit
+unconfirmed, hand off; quarantine remains. Then separately warm and obtain
+fresh capture/grounding before any action. Parent helpers/schemas require a
+later authorized activation; editing worker source or skills is not live
+handler activation. Do not claim recovery from a source-only test.
+
 ## Core invariants
 
-1. **See before acting.** Capture the relevant window or screen region first.
+1. **Fresh pixels before acting.** Known-target THEIA tools acquire them internally;
+   explicit screenshots are for unknown-content reasoning or materialized evidence.
 2. **Use fresh coordinates.** Coordinates belong only to the exact screenshot
    from which they were derived.
 3. **Prefer native grounding.** On a validated Windows CUDA deployment, use
@@ -59,16 +98,33 @@ capture immutable stage
   → repeat
 ```
 
-### 1. Capture
+### 1. Acquire fresh pixels internally (default)
 
-Use `computer_use_get_active_window()` when bounds matter, then
-`computer_use_capture_screen(region=[left, top, width, height])`. Prefer a
-single-window region over a multi-monitor frame: it preserves UI detail at the
-same `max_side` and reduces ambiguous context.
+For a known target, call `computer_use_locate`, `computer_use_locate_batch`,
+`computer_use_find_click`, or a symbolic `computer_use_batch` directly with
+`backend="cpp"` and **omit `image_path`**. `computer_use_observe_stage` and
+`computer_use_verify_target` also acquire fresh local pixels internally.
+No separate `computer_use_capture_screen` call or caller prefetch opt-in is
+needed. This applies to private local UI too; it never implicitly invokes Jev.
 
-Pass the returned `image_path` explicitly to every locate or symbolic-batch
-call in that stage. This makes the coordinate source auditable and enables
-exact-image prepared-feature reuse.
+THEIA uses bounded immutable RGB memory and shared-memory native transport,
+queues resident-worker preparation within the acquisition handler, and uses
+foreground preparation when the worker is cold. There is no always-on capture,
+second engine, image-quality reduction, or relaxed two-second prefetch gate.
+Full exact pixels and window/layout identity are rechecked before symbolic
+input. Changed pixels fail closed; do not auto-retry with stale coordinates.
+
+**Unknown content is different:** if Hermes must read an unfamiliar screen,
+reason about a modal, or deliver visual evidence, explicitly capture a
+materialized image and inspect it. A memory-only `.rgb` handle is not a file
+and does not let Hermes claim to have seen unknown screen content. An explicit
+`image_path` remains supported for immutable diagnostics; it is not evidence
+of the current live UI until revalidated.
+
+“No separate capture tool” means fused internal pixel acquisition, not
+“No pixels acquired.” After layout changes use another fused call, not a
+historical screenshot. Verify known postconditions using `verify_target`;
+verify external side effects directly too.
 
 ### 2. Ground targets
 
@@ -92,13 +148,14 @@ Never guess coordinates when visual grounding is available.
   navigation:** use `computer_use_execute_code()` with `static_screen=true`.
 - **One action, dynamic UI, or a stage needing visual evidence between actions:**
   use the individual mouse/keyboard tool, then recapture.
-- Symbolic static stage: provide `targets`, `image_path`,
+- Symbolic static stage: provide `targets` (omit `image_path` for fresh internal pixels),
   `static_screen=true`, and use `target_id` in click steps.
 
 ### 4. Verify
 
-Capture again and verify the visible result, active window, pixel state, or
-new target. If an operation creates a file, also verify the file directly.
+Use `computer_use_verify_target` for a known visible postcondition: fresh memory
+pixels are automatic. Use a materialized screenshot and inspection for unknown
+content. If an operation creates a file, also verify the file directly.
 
 ## Tool quick reference
 
@@ -190,7 +247,7 @@ Each target needs a unique stable `id` and an unambiguous `description`:
     {"id": "new_session", "description": "New session button in left sidebar"},
     {"id": "capabilities", "description": "Capabilities button in left sidebar"}
   ],
-  "image_path": "<fresh capture>",
+
   "backend": "cpp",
   "mode": "exact",
   "output_type": "point",
@@ -280,21 +337,21 @@ held/drag gestures in action code.
 
 To click grounded targets without manually copying coordinates:
 
-1. Capture one immutable screenshot.
+1. Let the symbolic action tool acquire fresh immutable pixels internally (omit image_path).
 2. Supply `targets` with authoritative descriptions.
 3. Set `static_screen=true`.
 4. Reference one final target using `target_id` in a click step.
 5. Provide a truthful `target_hint` and a structured `safe_purpose` that both
    match the authoritative target description.
 6. End the stage after the click (an optional trailing wait is allowed), then
-   recapture before typing, navigation, another click, or any further action.
+   use a new fused observation before typing, navigation, or another action.
 
 ```json
 {
   "targets": [
     {"id": "search", "description": "Search text field"}
   ],
-  "image_path": "<fresh capture>",
+
   "locate_mode": "exact",
   "static_screen": true,
   "backend": "cpp",

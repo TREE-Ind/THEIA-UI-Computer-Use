@@ -48,6 +48,7 @@ def test_worker_echoes_request_id_and_total_and_pass_timings(monkeypatch):
 
 def test_persistent_call_skips_stale_response_and_correlates_request(monkeypatch):
     import windows_computer_use as plugin
+    monkeypatch.setattr(plugin,"_EXTERNAL_WORKER_QUARANTINE",None)
 
     writes: list[dict] = []
 
@@ -75,7 +76,7 @@ def test_persistent_call_skips_stale_response_and_correlates_request(monkeypatch
                 return json.dumps({"status": "found", "request_id": "stale-request"})
             return json.dumps({"status": "found", "request_id": writes[-1]["request_id"], "center": {"x": 1, "y": 2}})
 
-    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None: {"status": "ok"})
+    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None, **kw: {"status": "ok"})
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PROC", FakeProc())
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_QUEUE", ReactiveQueue())
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PYTHON", "worker-python")
@@ -90,6 +91,7 @@ def test_persistent_call_skips_stale_response_and_correlates_request(monkeypatch
 
 def test_persistent_calls_are_serialized(monkeypatch):
     import windows_computer_use as plugin
+    monkeypatch.setattr(plugin,"_EXTERNAL_WORKER_QUARANTINE",None)
 
     writes: list[dict] = []
     active = 0
@@ -122,7 +124,7 @@ def test_persistent_calls_are_serialized(monkeypatch):
                 active -= 1
             return json.dumps({"status": "found", "request_id": request_id})
 
-    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None: {"status": "ok"})
+    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None, **kw: {"status": "ok"})
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PROC", FakeProc())
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_QUEUE", CorrelatedQueue())
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PYTHON", "worker-python")
@@ -142,8 +144,9 @@ def test_persistent_calls_are_serialized(monkeypatch):
     assert len({result["request_id"] for result in results}) == 2
 
 
-def test_timeout_restarts_worker_and_clears_stale_queue(monkeypatch):
+def test_timeout_quarantines_worker_without_terminating(monkeypatch):
     import windows_computer_use as plugin
+    monkeypatch.setattr(plugin,"_EXTERNAL_WORKER_QUARANTINE",None)
 
     class FakeStdin:
         def write(self, value: str) -> None:
@@ -171,7 +174,7 @@ def test_timeout_restarts_worker_and_clears_stale_queue(monkeypatch):
             raise queue.Empty
 
     proc = FakeProc()
-    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None: {"status": "ok"})
+    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None, **kw: {"status": "ok"})
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PROC", proc)
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_QUEUE", TimeoutQueue())
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PYTHON", "worker-python")
@@ -179,14 +182,15 @@ def test_timeout_restarts_worker_and_clears_stale_queue(monkeypatch):
     result = plugin._call_persistent_external_worker({"action": "locate"}, timeout=0.01)
 
     assert result["status"] == "error"
-    assert result["worker_restarted"] is True
-    assert proc.terminated is True
-    assert plugin._EXTERNAL_WORKER_PROC is None
-    assert plugin._EXTERNAL_WORKER_QUEUE is None
+    assert result["worker_restarted"] is False
+    assert proc.terminated is False
+    assert plugin._EXTERNAL_WORKER_PROC is proc
+    assert plugin._EXTERNAL_WORKER_QUARANTINE == "timeout"
 
 
-def test_worker_eof_fails_immediately_and_restarts(monkeypatch):
+def test_worker_eof_fails_immediately_and_quarantines(monkeypatch):
     import windows_computer_use as plugin
+    monkeypatch.setattr(plugin,"_EXTERNAL_WORKER_QUARANTINE",None)
 
     class FakeStdin:
         def write(self, value: str) -> None:
@@ -210,7 +214,7 @@ def test_worker_eof_fails_immediately_and_restarts(monkeypatch):
         def get(timeout=None):
             return plugin._EXTERNAL_WORKER_EOF
 
-    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None: {"status": "ok"})
+    monkeypatch.setattr(plugin, "_start_persistent_external_worker", lambda python=None, **kw: {"status": "ok"})
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PROC", FakeProc())
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_QUEUE", EofQueue())
     monkeypatch.setattr(plugin, "_EXTERNAL_WORKER_PYTHON", "worker-python")
@@ -219,11 +223,13 @@ def test_worker_eof_fails_immediately_and_restarts(monkeypatch):
 
     assert result["status"] == "error"
     assert "exited while awaiting response" in result["error"]
-    assert result["worker_restarted"] is True
+    assert result["worker_restarted"] is False
+    assert plugin._EXTERNAL_WORKER_QUARANTINE == "transport_error"
 
 
 def test_worker_signature_changes_with_code_mtime_and_locate_config(monkeypatch, tmp_path):
     import windows_computer_use as plugin
+    monkeypatch.setattr(plugin,"_EXTERNAL_WORKER_QUARANTINE",None)
 
     worker = tmp_path / "worker.py"
     worker.write_text("# one\n", encoding="utf-8")

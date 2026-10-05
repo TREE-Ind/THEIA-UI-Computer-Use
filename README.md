@@ -10,6 +10,176 @@ visual UI grounding.
 
 ![THEIA Computer Use infographic](assets/windows-computer-use-infographic.png)
 
+## Default automatic pixel pipeline
+
+Known-target THEIA calls no longer require a preceding screenshot tool call.
+With the active native `cpp` backend, omit `image_path` on locate/locate_batch,
+find_click, and symbolic batches. Observe and verify also acquire fresh pixels
+inside the handler. Acquisition is immutable memory RGB; ABI v3 uses shared RGB
+and raw native preparation on the same serialized CUDA worker. Preparation
+admission is fused with capture rather than aging across a model round trip.
+An unavailable speculative worker does not create another engine: foreground
+locate performs normal preparation. The one-slot/two-second prefetch deadline
+and transport quarantine are retained. `auto` resolves the configured backend
+before choosing transport. Explicit non-native backends retain file transport.
+
+Private local UI is allowed by default. No automatic route calls Jev or exports
+pixels; Jev remains an explicit public, bounded-candidate path. Symbolic input
+rechecks exact current capture pixels, screen origin, window/layout identity,
+and point bounds; changes block rather than blindly clicking. Default capture
+uses the full active window (desktop chrome uses primary), not speculative ROI.
+
+`computer_use_capture_screen` is still the explicit image-evidence tool for
+unknown content, visual reasoning, screenshots, and diagnostics. Inspect that
+image before claiming unfamiliar content was seen. Internal `.rgb` handles are
+bounded registry keys, not image files. **No separate capture tool call does
+not mean no pixel acquisition.** Older explicit-image examples below remain
+supported but are not the default known-target operating loop.
+
+See [automatic-pixel verification and activation](docs/AUTOMATIC_PIXEL_PIPELINE.md).
+
+## Worker transport recovery and invocation
+
+See [quarantine diagnosis, bounded drain, and explicit recovery](docs/WORKER_QUARANTINE_RECOVERY.md).
+Via `tool_call`, use one local call per invocation (one entry in `calls`); use
+THEIA `steps`/`targets` arrays only inside eligible plugin batch tools.
+
+## Experimental System One decision provider (read-only)
+
+`computer_use_decide_next` proposes a target ID from an explicitly supplied
+closed set of LocateAnything candidates. Its first provider is the official
+TypeSafe Jev `POST /v1/systemone` Choice API (`jev-latest`); the provider-neutral
+`choose(state, criteria)` boundary in `system_one_decision.py` allows a local
+Jev-Omni adapter later. This is **not** a GUI autopilot and never clicks, types,
+or passes screen pixels or coordinates to TypeSafe. It sends the goal, window,
+snapshot ID, prior action, candidate IDs, and descriptions as text. Optionally,
+`grounding_manifest` adds a validated compact `stage_index`, `stage_count`,
+`previous_verified`, and `visible` entries with ID, description, safe purpose,
+and coarse nine-zone screen position. The standalone decision tool validates
+schema and candidate consistency, **not** provenance: manual callers must derive
+this from a fresh trusted observation. The integrated loop verifies native
+provenance and capture bounds before building it. Invalid/mismatched manifests
+fail closed before the provider call. Do not use it with sensitive UI descriptions
+or private goals without permission.
+
+Place `TYPESAFE_API_KEY` in the active Hermes profile's `.env` locally (never in
+`config.yaml`, chat, or a repository) and restart the gateway so it inherits the
+key. Without a key, the tool returns `escalate: provider_error`; it never
+silently substitutes a different model. No Jev credential is bundled.
+
+Use `computer_use_observe_stage` with `backend="cpp", mode="exact"` to get
+grounded candidates from one immutable capture. Exclude missing/ambiguous,
+high-impact, or sensitive candidates before calling `computer_use_decide_next`.
+Pass that capture's identifier as `snapshot_id` and only descriptive metadata
+for each candidate: `{"id":"search", "description":"Focus search field",
+"risk":"non_destructive"}`. The tool returns `proposed` with a candidate ID,
+`wait`, or `escalate` (including low confidence or errors). `snapshot_id` is
+**caller supplied**, not an authenticated provenance check: before *any* action,
+revalidate that the selected target belongs to the current capture, run THEIA's
+normal action safety preflight, and verify the UI after one state-changing step.
+Do not turn this proposal into a raw-coordinate click or bypass the existing
+preflight. Confidence threshold 0.75 is only an initial tuning value; measure
+mis-actions and task success on a safe fixture before enabling any autonomous
+execution. The current tool has no autonomous execution path.
+
+API reference: https://docs.typesafe.ai/api ; state format:
+https://docs.typesafe.ai/concepts/state .
+
+## Experimental Jev-guided bounded navigation loop
+
+`computer_use_jev_loop` is the integrated path for **public, preplanned, read-only
+GUI navigation**. Hermes supplies a stable window-title fragment, a goal, up to
+four stages of candidate controls, and a final visible completion target in
+one call. At each stage THEIA captures and exactly grounds all options using
+its native CUDA DLL. For multiple visible choices, THEIA derives a compact
+manifest from the same trusted capture (IDs, descriptions, safe purposes,
+coarse positions, current stage, and verified prior transition); Jev receives
+this metadata, not coordinates or pixels, and proposes one ID. A single
+preauthorized candidate is selected locally with no Jev request. THEIA rechecks
+the window and snapshot, preflights a single safe click/double-click, then
+captures and verifies a changed screen. After navigation, an explicit native
+`not_found` can trigger up to three bounded re-observations of the same planned
+stage (and likewise at completion); invalid provenance, backend failure, wrong
+window, and deadline fail closed immediately. The next stage proceeds without
+another Hermes turn. On low confidence, a provider `wait`, persistently missing
+or ambiguous grounding, stale pixels, unsafe descriptions, failed action,
+unchanged screen, or missing final target, it returns `escalate`/`blocked` with
+a reason; Hermes must review and recover. It never guesses a new stage.
+
+The caller must explicitly set `public_context=true` because the goal, window
+fragment, and candidate descriptions go to TypeSafe. Do not use it on personal
+accounts, private pages, credentials, or consequential actions. No screen pixels
+or coordinates are sent to Jev. The entire candidate set is safety-preflighted
+before the first provider call or click. Its `completed` status means only that
+the declared visual completion target was grounded after verified transitions;
+it is not proof of an external side effect. `computer_use_decide_next` remains
+available for manual, read-only proposals. The gateway needs a restart after
+installing a new tool registration.
+
+Example shape (use only after inspecting a public active window):
+
+```json
+{"goal":"Open public help information", "window":"Public Demo", "public_context":true,
+ "stages":[{"candidates":[
+   {"id":"help","description":"Help information button","risk":"non_destructive",
+    "safe_purpose":"inspect","action":"click"}]}],
+ "completion_target":{"id":"heading","description":"Help information heading"}}
+```
+
+## Immutable frame transport and bounded-loop fast path
+
+The Windows ABI-3 path retains immutable RGB copies for the two most recent
+captures, bounded to 64 MiB in the parent. Public capture/observe tools still
+materialize PNG evidence by default. For trusted current-process captures, cpp
+requests copy RGB into a request-owned shared-memory segment; the JSONL worker
+copies and verifies its dimensions and SHA-256 before preprocessing. The parent
+closes/unlinks the segment on success, error, or timeout. Worker image/prepared
+feature/result cache identities use verified RGB content and dimensions, not a
+new capture filename, so unchanged pixels can reuse exact results across fresh
+captures. Crop, resize, preprocessing, prompt/decode options, and native/model
+identity remain part of the existing appropriate cache keys. No resolution,
+quantization, or decoding accuracy setting is lowered.
+
+The existing Jev loop uses internal memory-only captures: its `.rgb` image_path
+is an opaque, ephemeral registry key, **not a file**. These frames cannot be
+replayed after eviction or gateway restart. It freshly compares pixels **and
+capture bounds** before acting; old inference cannot authorize a moved window.
+Only its private trusted observation supplies the selected candidate's integer
+coordinates to the normal action batch preflight. This removes the second
+symbolic locate/worker request before the click. Multi-option stages still use
+the existing text-only closed-option Choice API exactly once; single-option
+stages require no provider call. No Decisions API, image-seeing Jev, generated
+queries, background capture service, or unconstrained policy was added.
+
+The isolated worker strips inherited `PYTHONPATH`/`PYTHONHOME`, preventing binary
+Pillow/Torch wheels from the gateway's different Python ABI from being imported.
+There is still one serialized resident native engine per plugin worker, not a
+pool of concurrent CUDA engines. Gateway restart is needed to load the new
+parent capture/transport/environment code; source-signature worker recycling
+alone does not reload already-registered parent handlers. Do not restart the
+gateway during an active development session.
+
+Local validation script (no GUI actions or cloud requests):
+
+```powershell
+# Run only when no other THEIA worker owns the GPU; this script owns and closes
+# its worker. Point --report at your active profile's scratch directory.
+python .\scripts\verify_frame_pipeline.py --report C:\path\to\scratch\frame-report.json
+```
+
+The optional smoke compares shared RGB and PNG-reference coordinates on the same
+screenshot and reports raw capture timings. It is not run by the source suite.
+This publication establishes source-level contracts and clean dependency installation,
+not live parent activation, GPU acceptance, cross-platform shared-memory parity,
+or an end-to-end speed improvement. Cache pass timings can be historical; inspect
+the current request `timing.total_ms` and `cache_hit`.
+
+Regression command, with inherited Python paths cleared when needed:
+
+```bash
+env -u PYTHONPATH uv run --with pytest --with pyyaml python -m pytest tests -q --basetemp C:/path/to/hermes/scratch/theia-tests
+```
+
 ## What it unlocks
 
 THEIA lets **Hermes Agent** operate GUI software the way a human does: see the
@@ -199,8 +369,22 @@ grounding is installing or unavailable.
 
 The heavy visual-grounding stack is **not** installed into the live Hermes venv.
 On plugin load, THEIA starts a best-effort background bootstrap that creates an
-isolated worker venv and installs LocateAnything dependencies there. The toolset
-auto-discovers that worker when it is ready.
+isolated worker venv and installs LocateAnything dependencies there from
+`requirements-locate.txt`. The toolset auto-discovers that worker when it is
+ready. Do not install a `[locate]` plugin extra into Hermes: the plugin no longer
+declares one, because Hermes resolves every workspace-member extra alongside its
+core dependencies, including extras that were not requested. Keep the pinned
+Transformers/Hugging Face stack inside the isolated worker instead.
+
+This is the compatibility fix for Hermes core's `trace-upload` extra using
+`huggingface-hub==1.24.0`: worker `transformers==4.57.1` requires Hub
+`>=0.34,<1`. uv resolves even unselected workspace extras, so retaining a plugin
+`[locate]` extra blocked admission. Removing that extra allows core's newer Hub
+without changing its version or blindly upgrading worker Transformers.
+`requirements-locate.txt` remains the separate worker contract. The regression
+in `tests/test_workspace_admission.py` reproduces the old conflict and verifies
+actual fixed workspace locking with core Hub 1.24.0 and no worker-heavy leak.
+Core's own transitive `hf-xet` dependency is expected in that workspace.
 
 Default worker location:
 
@@ -453,7 +637,7 @@ The locate-anything.cpp upgrade supports CUDA for much faster grounding on NVIDI
 2. From a "x64 Native Tools Command Prompt for VS 2022" (or after running VsDevCmd.bat), run:
 
 ```powershell
-cd C:\Users\mulle\dev\locate-anything.cpp
+cd C:\path\to\locate-anything.cpp
 # or from the cloned dir
 
 rmdir /s /q build 2>nul

@@ -17,6 +17,14 @@ platforms:
 - linux
 provides_hooks: []
 provides_tools:
+- computer_use_worker_status
+- computer_use_recover_worker
+- computer_use_prefetch_frame
+- computer_use_accessibility_candidates
+- computer_use_track_regions
+- computer_use_verify_target
+- computer_use_decide_next
+- computer_use_jev_loop
 - computer_use_capture_screen
 - computer_use_observe_stage
 - computer_use_dynamic_workflow
