@@ -64,6 +64,13 @@ def test_locate_batch_captures_once_preserves_ids_and_adjusts_crop_origin(monkey
 
 def test_symbolic_batch_resolves_all_targets_before_first_action(monkeypatch):
     module = load_plugin("theia_symbolic_batch")
+    # This unit tests resolution/order; acquisition and fail-closed exact pixel
+    # validation are exercised end-to-end in test_automatic_pixels.py.
+    def valid_frame(path, fingerprint, points):
+        assert path == "immutable.png"
+        assert points == [(11, 22)]
+        return True
+    monkeypatch.setattr(module._SPEED, "validate_action_frame", valid_frame)
     locate_calls = []
     click_calls = []
     monkeypatch.setattr(

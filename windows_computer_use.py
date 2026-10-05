@@ -32,6 +32,22 @@ try:
 except Exception:  # pragma: no cover
     registry = None
 
+def _speed_module(name):
+    """Load plugin siblings without modifying global import paths."""
+    import importlib.util
+    key = "theia_plugin_" + name
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(key, Path(__file__).resolve().parent / (name + ".py"))
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            sys.modules.pop(key, None)
+            raise
+    return sys.modules[key]
+
+
 def _hermes_home() -> Path:
     try:
         from hermes_constants import get_hermes_home
@@ -62,10 +78,10 @@ def _json(result: Any) -> str:
 def _wrap(fn):
     def _handler(args: Dict[str, Any], **_: Any) -> str:
         try:
-            return _json(fn(**(args or {})))
+            return _json(_speed_module("speed_errors").actionable(fn(**(args or {})), getattr(fn, "__name__", "tool")))
         except Exception as exc:
             logger.exception("%s failed", getattr(fn, "__name__", fn))
-            return _json({"status": "error", "error": str(exc), "error_type": type(exc).__name__, "dry_run": DRY_RUN})
+            return _json(_speed_module("speed_errors").actionable({"status": "error", "error": str(exc), "error_type": type(exc).__name__, "dry_run": DRY_RUN}, getattr(fn, "__name__", "tool")))
     return _handler
 
 
@@ -290,9 +306,11 @@ def _capture_pixels(pg: Any, region: Optional[Tuple[int, int, int, int]], all_sc
 
 
 _CAPTURE_META_REGISTRY: Dict[str, Dict[str, Any]] = {}
+_CAPTURE_RGB_REGISTRY: Dict[str, bytes] = {}
+_CAPTURE_RGB_LOCK = threading.Lock()
 
 
-def _capture_screen(display_index: int = 0, question: Optional[str] = None, region: Optional[Any] = None, all_screens: bool = False, scope: str = "primary", **_: Any) -> Dict[str, Any]:
+def _capture_screen(display_index: int = 0, question: Optional[str] = None, region: Optional[Any] = None, all_screens: bool = False, scope: str = "primary", _materialize: bool = True, **_: Any) -> Dict[str, Any]:
     scope = str(scope or "primary").strip().lower()
     allowed_scopes = {"primary", "virtual_desktop", "active_window", "active_client", "region"}
     if scope not in allowed_scopes:
@@ -319,15 +337,22 @@ def _capture_screen(display_index: int = 0, question: Optional[str] = None, regi
     pg = _pyautogui()
     normalized_region, region_clipped = _normalize_region(region, return_clipped=True)
     virtual = _virtual_screen_bounds()
+    captured_monotonic = time.monotonic()
     screenshot = _capture_pixels(pg, normalized_region, bool(all_screens), virtual)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    path = SCRATCH_DIR / f"screen_{timestamp}.png"
-    screenshot.save(path)
+    pixels = screenshot.convert("RGB").tobytes()
+    path = SCRATCH_DIR / f"screen_{timestamp}_{uuid.uuid4().hex}.{'png' if _materialize else 'rgb'}"
     digest = hashlib.sha256()
-    with open(path, "rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    stat = path.stat()
+    if _materialize:
+        screenshot.save(path)
+        with open(path, "rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        stat = path.stat()
+        file_size, file_mtime_ns = int(stat.st_size), int(stat.st_mtime_ns)
+    else:
+        digest.update(pixels)
+        file_size, file_mtime_ns = len(pixels), time.monotonic_ns()
     if normalized_region:
         capture_region = list(normalized_region)
     elif all_screens:
@@ -346,18 +371,26 @@ def _capture_screen(display_index: int = 0, question: Optional[str] = None, regi
         "scope": scope,
         "immutable": True,
         "sha256": digest.hexdigest(),
-        "file_size": int(stat.st_size),
-        "file_mtime_ns": int(stat.st_mtime_ns),
+        "file_size": file_size,
+        "file_mtime_ns": file_mtime_ns,
+        "memory_only": not _materialize,
+        "captured_monotonic": captured_monotonic,
     }
     registry_key = os.path.abspath(str(path))
     _CAPTURE_META_REGISTRY[registry_key] = dict(meta)
+    with _CAPTURE_RGB_LOCK:
+        if len(pixels) <= 64 * 1024 * 1024:
+            _CAPTURE_RGB_REGISTRY[registry_key] = pixels
+        while len(_CAPTURE_RGB_REGISTRY) > 2 or sum(map(len, _CAPTURE_RGB_REGISTRY.values())) > 64 * 1024 * 1024:
+            _CAPTURE_RGB_REGISTRY.pop(next(iter(_CAPTURE_RGB_REGISTRY)))
     while len(_CAPTURE_META_REGISTRY) > 128:
         _CAPTURE_META_REGISTRY.pop(next(iter(_CAPTURE_META_REGISTRY)))
-    try:
-        with open(f"{path}.meta.json", "w", encoding="utf-8") as mf:
-            json.dump(meta, mf)
-    except Exception:
-        logger.exception("failed to write capture meta for %s", path)
+    if _materialize:
+        try:
+            with open(f"{path}.meta.json", "w", encoding="utf-8") as mf:
+                json.dump(meta, mf)
+        except Exception:
+            logger.exception("failed to write capture meta for %s", path)
     return _result(
         image_path=str(path),
         width=screenshot.width,
@@ -373,25 +406,26 @@ def _capture_screen(display_index: int = 0, question: Optional[str] = None, regi
         scope=scope,
         immutable=True,
         sha256=digest.hexdigest(),
+        capture_transport="png_evidence" if _materialize else "memory_rgb",
     )
 
 
 _TASKBAR_CAPTURE_RE = re.compile(r"\b(taskbar|system tray|notification area|start button|windows search|clock on the taskbar)\b", re.IGNORECASE)
 
 
-def _capture_for_grounding(descriptions: Any = None, region: Optional[Any] = None) -> Dict[str, Any]:
-    """Prefer a high-resolution active-window ROI unless the target is desktop chrome."""
+def _capture_for_grounding(descriptions: Any = None, region: Optional[Any] = None, _materialize: bool = False) -> Dict[str, Any]:
+    """Acquire fresh local pixels internally; public screenshots are evidence only."""
     if region is not None:
-        return _capture_screen(scope="region", region=region)
+        return _capture_screen(scope="region", region=region, _materialize=_materialize)
     if isinstance(descriptions, (list, tuple)):
         text = " ".join(str(item) for item in descriptions)
     else:
         text = str(descriptions or "")
     if _TASKBAR_CAPTURE_RE.search(text):
-        return _capture_screen(scope="primary")
+        return _capture_screen(scope="primary", _materialize=_materialize)
     if _active_window():
-        return _capture_screen(scope="active_window")
-    return _capture_screen(scope="primary")
+        return _capture_screen(scope="active_window", _materialize=_materialize)
+    return _capture_screen(scope="primary", _materialize=_materialize)
 
 
 def _observe_stage(
@@ -402,13 +436,21 @@ def _observe_stage(
     backend: Optional[str] = "cpp",
     device: Optional[str] = "cuda",
     timeout_seconds: Optional[float] = None,
+    _materialize_capture: bool = False,
     **options: Any,
 ) -> Dict[str, Any]:
     """Capture one immutable stage and optionally ground all targets against it."""
     started = time.perf_counter()
+    deadline = None if timeout_seconds is None else time.monotonic()+timeout_seconds
     capture_started = time.perf_counter()
-    capture = _capture_screen(scope=scope, region=region)
+    materialize = _materialize_capture or _locate_backend_preference(backend) != "cpp"
+    capture = _capture_screen(scope=scope, region=region, **({} if materialize else {"_materialize": False}))
+    if deadline is not None:
+        timeout_seconds = deadline-time.monotonic()
+        if timeout_seconds <= 0:
+            return _result("blocked", code="capture_deadline", phase="capture", native_call_cancelled=False, retryable=False, next_step="handoff_with_fresh_state")
     capture_ms = (time.perf_counter() - capture_started) * 1000.0
+    preparation = _SPEED.prepare_capture(capture, _locate_backend_preference(backend)) if targets else None
     grounding = None
     grounding_ms = 0.0
     if targets:
@@ -427,6 +469,7 @@ def _observe_stage(
         "ok",
         stage_static=True,
         capture=capture,
+        preparation=preparation,
         grounding=grounding,
         timing={
             "capture_ms": round(capture_ms, 3),
@@ -881,8 +924,8 @@ def _batch_step_summary(step: Dict[str, Any]) -> Dict[str, Any]:
     return summary
 
 
-def _batch_sequence_block_reason(steps: List[Dict[str, Any]]) -> Optional[str]:
-    """Require fresh pixels after any action that can invalidate observed state."""
+def _batch_sequence_feedback(steps: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Describe the fresh-stage boundary without authorizing any automatic retry."""
     invalidating = {"click", "double_click", "type", "press", "scroll", "focus_window", "wait"}
     for index, step in enumerate(steps):
         action = str(step.get("action", "")).strip().lower()
@@ -890,12 +933,23 @@ def _batch_sequence_block_reason(steps: List[Dict[str, Any]]) -> Optional[str]:
             continue
         later = steps[index + 1:]
         if action != "wait":
-            # A trailing wait may settle this stage; the next action still needs
-            # a new observation and belongs in the next stage.
             later = [item for item in later if str(item.get("action", "")).strip().lower() != "wait"]
         if later:
-            return f"step {index} action {action!r} can invalidate coordinates; start a fresh stage before the next action"
+            return {
+                "error": f"step {index} action {action!r} can invalidate coordinates; start a fresh stage before the next action",
+                "code": "fresh_stage_required", "blocked_step": index,
+                "next_step": "split_at_invalidating_action_recapture_verify_focus_and_reground",
+                "retryable": False,
+                "next_stage": {"after_step": index, "resume_step": index + 1,
+                    "observation_required": True, "reground_remaining_targets": True,
+                    "verify_keyboard_focus": True, "automatic_retry": False},
+            }
     return None
+
+
+def _batch_sequence_block_reason(steps: List[Dict[str, Any]]) -> Optional[str]:
+    feedback = _batch_sequence_feedback(steps)
+    return feedback["error"] if feedback else None
 
 
 def _batch_step_max_seconds(step: Dict[str, Any]) -> float:
@@ -994,6 +1048,10 @@ def _dynamic_workflow(
     for stage_index, stage in enumerate(stages):
         reason = _dynamic_stage_block_reason(stage, stage_index)
         if reason:
+            safe_steps = stage.get("steps") if isinstance(stage, dict) else None
+            feedback = _batch_sequence_feedback(safe_steps) if isinstance(safe_steps, list) and all(isinstance(s, dict) for s in safe_steps) else None
+            if feedback and reason == f"stage {stage_index}: {feedback['error']}":
+                return _result("blocked", **{**feedback, "error":reason}, blocked_stage=stage_index, planned_stages=len(stages), executed_stages=0, captures=0)
             return _result("blocked", error=reason, blocked_stage=stage_index, planned_stages=len(stages), executed_stages=0, captures=0)
 
     started = time.monotonic()
@@ -1134,14 +1192,15 @@ def _computer_use_batch(
                     "blocked", error=f"step {index} target description does not match declared safe_purpose",
                     blocked_step=index, planned_steps=len(steps), executed_steps=0,
                 )
-    sequence_reason = _batch_sequence_block_reason(steps)
-    if sequence_reason:
-        return _result("blocked", error=sequence_reason, planned_steps=len(steps), executed_steps=0)
+    sequence_feedback = _batch_sequence_feedback(steps)
+    if sequence_feedback:
+        return _result("blocked", **sequence_feedback, planned_steps=len(steps), executed_steps=0)
 
     locate_result: Optional[Dict[str, Any]] = None
     resolved_targets: Dict[str, Dict[str, int]] = {}
     resolved_steps = [dict(step) for step in steps]
     if symbolic:
+        action_fingerprint = _grounding_window_fingerprint()
         remaining_timeout = None if deadline is None else deadline - time.monotonic()
         if remaining_timeout is not None and remaining_timeout <= 0:
             return _result("stopped", error="batch deadline expired before grounding", planned_steps=len(steps), executed_steps=0)
@@ -1180,6 +1239,11 @@ def _computer_use_batch(
             target_id = str(step.get("target_id", "")).strip()
             if target_id:
                 step.update(resolved_targets[target_id])
+        if not _SPEED.validate_action_frame(locate_result.get("image_path") or image_path,
+                action_fingerprint, [(p["x"], p["y"]) for p in resolved_targets.values()]):
+            return _result("blocked", code="stale_capture", planned_steps=len(steps),
+                           executed_steps=0, locate_batch=locate_result,
+                           next_step="reobserve_or_inspect_image_evidence")
 
     handlers = {
         "move": _move,
@@ -1207,6 +1271,13 @@ def _computer_use_batch(
         action = str(step.pop("action")).strip().lower()
         step = _batch_step_args(action, step)
         summary = _batch_step_summary(raw_step)
+        if symbolic and raw_step.get("target_id") and action in {"click", "double_click"}:
+            point = resolved_targets[str(raw_step["target_id"]).strip()]
+            if not _SPEED.validate_action_frame(locate_result.get("image_path") or image_path,
+                    action_fingerprint, [(point["x"], point["y"])]):
+                return _result("blocked", code="stale_capture", stopped_at=index,
+                               planned_steps=len(steps), executed_steps=len(results), steps=results,
+                               locate_batch=locate_result, next_step="reobserve_or_inspect_image_evidence")
         try:
             if action == "wait":
                 duration_ms = float(step.pop("duration_ms"))
@@ -1335,9 +1406,9 @@ def _computer_use_execute_code(code: str, static_screen: bool = False, stop_on_f
         reason = _batch_block_reason(step, index)
         if reason:
             return _result("blocked", error=reason, blocked_step=index, planned_steps=len(steps), executed_steps=0)
-    sequence_reason = _batch_sequence_block_reason(steps)
-    if sequence_reason:
-        return _result("blocked", error=sequence_reason, planned_steps=len(steps), executed_steps=0)
+    sequence_feedback = _batch_sequence_feedback(steps)
+    if sequence_feedback:
+        return _result("blocked", **sequence_feedback, planned_steps=len(steps), executed_steps=0)
 
     started = time.monotonic()
     chunks: List[Dict[str, Any]] = []
@@ -1420,7 +1491,10 @@ def _external_python_path(explicit: Optional[str] = None) -> Optional[str]:
     for value in [explicit, os.getenv("COMPUTER_USE_LOCATE_PYTHON")]:
         if value:
             candidates.append(str(value))
-    candidates.append(str(_venv_python(_locate_worker_default_venv())))
+    # Prefer the dedicated worker environment before any caller-supplied Python.
+    # Hermes' application venv may have an incompatible native Pillow extension;
+    # choosing it first breaks the isolated LocateAnything worker after restart.
+    candidates.insert(0, str(_venv_python(_locate_worker_default_venv())))
     # Safe defaults: only use already-existing interpreters outside Hermes' venv.
     candidates.extend([r"C:\Python312\python.exe", r"C:\Python311\python.exe", "/usr/local/bin/python3", "/usr/bin/python3"])
     current = Path(sys.executable).resolve()
@@ -1441,6 +1515,76 @@ _EXTERNAL_WORKER_SIGNATURE = None
 _EXTERNAL_WORKER_EOF = object()
 _EXTERNAL_WORKER_LOCK = threading.Lock()
 _EXTERNAL_WORKER_CALL_LOCK = threading.Lock()
+_EXTERNAL_WORKER_QUARANTINE = None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def _worker_transport_status() -> Dict[str, Any]:
+    """Screenshot-free telemetry; no native call or restart."""
+    proc = _EXTERNAL_WORKER_PROC
+    return {"status":"ok", "worker_alive":proc is not None and proc.poll() is None,
+            "transaction_busy":_EXTERNAL_WORKER_CALL_LOCK.locked(),
+            "transport_quarantined":bool(_EXTERNAL_WORKER_QUARANTINE),
+            "quarantine_reason":_EXTERNAL_WORKER_QUARANTINE,
+            "native_call_cancelled":False, "worker_restarted":False,
+            "recovery":{"tool":"computer_use_recover_worker", "authorize":True,
+                        "scope":"owned_isolated_worker_only", "requires_user_authorization":True,
+                        "then":"explicit_foreground_warm_then_fresh_capture_and_reground"}}
+
+
+def _recover_worker(authorize=False, timeout_seconds=5) -> Dict[str, Any]:
+    """Explicit foreground disposal only; never starts a replacement engine."""
+    global _EXTERNAL_WORKER_QUARANTINE
+    if authorize is not True:
+        return {"status":"blocked", "code":"worker_recovery_authorization_required"}
+    if not isinstance(timeout_seconds, (int, float)) or not 0 < timeout_seconds <= 30:
+        return {"status":"blocked", "code":"invalid_recovery_timeout"}
+    deadline = time.monotonic()+timeout_seconds
+    if not _EXTERNAL_WORKER_CALL_LOCK.acquire(timeout=max(0, deadline-time.monotonic())):
+        return {"status":"blocked", "code":"worker_recovery_busy", "worker_restarted":False}
+    try:
+        if not _EXTERNAL_WORKER_LOCK.acquire(timeout=max(0, deadline-time.monotonic())):
+            return {"status":"blocked", "code":"worker_recovery_busy", "worker_restarted":False}
+        try:
+            if not _EXTERNAL_WORKER_QUARANTINE:
+                return {"status":"blocked", "code":"worker_not_quarantined", "worker_restarted":False}
+            proc = _EXTERNAL_WORKER_PROC
+            if proc is not None:
+                try:
+                    if proc.poll() is None:
+                        proc.terminate()
+                    proc.wait(timeout=max(0, deadline-time.monotonic()))
+                    if proc.poll() is None:
+                        raise RuntimeError("worker_exit_unconfirmed")
+                except Exception:
+                    return {"status":"blocked", "code":"worker_exit_unconfirmed",
+                            "transport_quarantined":True, "worker_restarted":False,
+                            "native_call_cancelled":False}
+            _dispose_external_worker_locked()
+            _EXTERNAL_WORKER_QUARANTINE = None
+            _SPEED.invalidate("worker_recovery")
+            return {"status":"ok", "worker_restarted":False, "worker_exit_confirmed":True,
+                    "native_call_cancelled":False, "transport_quarantined":False,
+                    "next_step":"explicit_foreground_warm_then_fresh_capture_and_reground"}
+        finally:
+            _EXTERNAL_WORKER_LOCK.release()
+    finally:
+        _EXTERNAL_WORKER_CALL_LOCK.release()
 
 
 def _external_worker_signature(external_python: str) -> Tuple[Any, ...]:
@@ -1461,17 +1605,21 @@ def _external_worker_signature(external_python: str) -> Tuple[Any, ...]:
     return (str(Path(external_python)), code_identity, config)
 
 
-def _dispose_external_worker_locked() -> bool:
-    """Terminate and forget the current worker. Caller holds worker/call lock."""
-    global _EXTERNAL_WORKER_PROC, _EXTERNAL_WORKER_PYTHON, _EXTERNAL_WORKER_QUEUE, _EXTERNAL_WORKER_SIGNATURE
+def _dispose_external_worker_locked(*, deadline=None) -> bool:
+    """Reap before forgetting: no overlapping GPU engine on source recycling."""
+    global _EXTERNAL_WORKER_PROC, _EXTERNAL_WORKER_PYTHON, _EXTERNAL_WORKER_QUEUE, _EXTERNAL_WORKER_SIGNATURE, _EXTERNAL_WORKER_QUARANTINE
     proc = _EXTERNAL_WORKER_PROC
     terminated = False
     if proc is not None and proc.poll() is None:
         try:
             proc.terminate()
+            proc.wait(timeout=5 if deadline is None else max(0, deadline-time.monotonic()))
+            if proc.poll() is None:
+                raise RuntimeError("worker_exit_unconfirmed")
             terminated = True
-        except Exception:
-            logger.exception("failed to terminate LocateAnything worker")
+        except Exception as exc:
+            _EXTERNAL_WORKER_QUARANTINE = "exit_unconfirmed"
+            raise RuntimeError("worker_exit_unconfirmed") from exc
     # Replacing the queue is deliberate: late output from the old reader remains
     # isolated in its old queue and cannot be mistaken for a new response.
     _EXTERNAL_WORKER_PROC = None
@@ -1481,8 +1629,22 @@ def _dispose_external_worker_locked() -> bool:
     return terminated
 
 
-def _start_persistent_external_worker(python: Optional[str] = None) -> Dict[str, Any]:
+def _worker_subprocess_env() -> Dict[str, str]:
+    env = os.environ.copy()
+    # The isolated worker must not import binary wheels from the gateway ABI.
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    return env
+
+
+def _start_persistent_external_worker(python: Optional[str] = None, *, deadline=None) -> Dict[str, Any]:
     global _EXTERNAL_WORKER_PROC, _EXTERNAL_WORKER_PYTHON, _EXTERNAL_WORKER_QUEUE, _EXTERNAL_WORKER_SIGNATURE
+    if _EXTERNAL_WORKER_QUARANTINE:
+        return {"status":"blocked","code":"worker_transport_quarantined","phase":"transport",
+                "worker_restarted":False,"retryable":False,
+                "next_step":"authorize_owned_worker_recovery_then_explicit_warm",
+                "quarantine_reason":_EXTERNAL_WORKER_QUARANTINE, "native_call_cancelled":False,
+                "recovery":_worker_transport_status()["recovery"]}
     external_python = _external_python_path(python)
     if not external_python:
         return {"status": "error", "backend": "external", "error": "No LocateAnything worker Python is ready yet. THEIA auto-installs one outside the Hermes venv by default; set COMPUTER_USE_LOCATE_PYTHON manually or run scripts/setup_locate_worker.py if needed."}
@@ -1490,7 +1652,10 @@ def _start_persistent_external_worker(python: Optional[str] = None) -> Dict[str,
     if not worker.exists():
         return {"status": "error", "backend": "external", "error": f"Locate worker script not found: {worker}", "python": external_python}
     signature = _external_worker_signature(external_python)
-    with _EXTERNAL_WORKER_LOCK:
+    remaining = 300 if deadline is None else max(0,deadline-time.monotonic())
+    if not _EXTERNAL_WORKER_LOCK.acquire(timeout=remaining):
+        return {"status":"blocked","code":"worker_startup_deadline","phase":"startup","retryable":False,"next_step":"inspect_shared_worker"}
+    try:
         if (
             _EXTERNAL_WORKER_PROC is not None
             and _EXTERNAL_WORKER_PROC.poll() is None
@@ -1499,7 +1664,12 @@ def _start_persistent_external_worker(python: Optional[str] = None) -> Dict[str,
         ):
             return {"status": "ok", "backend": "external", "python": external_python, "worker": str(worker), "persistent": True}
         invalidated = _EXTERNAL_WORKER_PROC is not None
-        _dispose_external_worker_locked()
+        try:
+            _dispose_external_worker_locked(deadline=deadline)
+        except RuntimeError:
+            return {"status":"blocked", "code":"worker_exit_unconfirmed",
+                    "transport_quarantined":True, "worker_restarted":False,
+                    "recovery":_worker_transport_status()["recovery"]}
         try:
             proc = subprocess.Popen(
                 [external_python, str(worker), "--server"],
@@ -1508,7 +1678,7 @@ def _start_persistent_external_worker(python: Optional[str] = None) -> Dict[str,
                 stderr=subprocess.DEVNULL,
                 text=True,
                 bufsize=1,
-                env=os.environ.copy(),
+                env=_worker_subprocess_env(),
             )
         except Exception as exc:
             return {"status": "error", "backend": "external", "error": str(exc), "python": external_python, "worker": str(worker)}
@@ -1527,80 +1697,181 @@ def _start_persistent_external_worker(python: Optional[str] = None) -> Dict[str,
         _EXTERNAL_WORKER_SIGNATURE = signature
         return {"status": "ok", "backend": "external", "python": external_python, "worker": str(worker), "persistent": True, "invalidated_previous": invalidated}
 
+    finally:
+        _EXTERNAL_WORKER_LOCK.release()
+
 
 def _call_persistent_external_worker(payload: Dict[str, Any], python: Optional[str] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
     # A single worker owns one native model/GPU context. Serialize the complete
     # request/response transaction so callers can never run native inference in
     # parallel or consume each other's stdout.
-    with _EXTERNAL_WORKER_CALL_LOCK:
-        started = _start_persistent_external_worker(python)
-        if started.get("status") == "error":
-            return started
-        proc = _EXTERNAL_WORKER_PROC
-        q = _EXTERNAL_WORKER_QUEUE
-        if proc is None or proc.stdin is None or q is None or proc.poll() is not None:
-            return {"status": "error", "backend": "external", "error": "persistent external worker is not running", "start": started}
-        request = dict(payload)
-        request_id = str(request.get("request_id") or uuid.uuid4())
-        request["request_id"] = request_id
-        timeout_seconds = float(timeout or os.getenv("COMPUTER_USE_LOCATE_WORKER_TIMEOUT", "300"))
-        deadline = time.monotonic() + timeout_seconds
-        stale = 0
-        try:
-            proc.stdin.write(json.dumps(request) + "\n")
-            proc.stdin.flush()
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise Empty
-                line = q.get(timeout=remaining)
-                if line is _EXTERNAL_WORKER_EOF:
-                    raise RuntimeError(f"persistent external worker exited while awaiting response (exit={proc.poll()})")
-                data = json.loads(line)
-                if data.get("request_id") != request_id:
-                    stale += 1
-                    continue
-                data.setdefault("backend", "external")
-                data.setdefault("python", _EXTERNAL_WORKER_PYTHON)
-                data["persistent"] = True
-                data["stale_responses_discarded"] = stale
-                return data
-        except Empty:
-            worker_python = _EXTERNAL_WORKER_PYTHON
-            _dispose_external_worker_locked()
-            return {
-                "status": "error",
-                "backend": "external",
-                "error": "persistent external worker timed out",
-                "python": worker_python,
-                "persistent": True,
-                "request_id": request_id,
-                "stale_responses_discarded": stale,
-                "worker_restarted": True,
-            }
-        except Exception as exc:
-            worker_python = _EXTERNAL_WORKER_PYTHON
-            _dispose_external_worker_locked()
-            return {
-                "status": "error",
-                "backend": "external",
-                "error": str(exc),
-                "python": worker_python,
-                "persistent": True,
-                "request_id": request_id,
-                "stale_responses_discarded": stale,
-                "worker_restarted": True,
-            }
+    global _EXTERNAL_WORKER_QUARANTINE
+    timeout_seconds = float(timeout if timeout is not None else os.getenv("COMPUTER_USE_LOCATE_WORKER_TIMEOUT", "300"))
+    deadline = min(time.monotonic()+timeout_seconds, float(payload.get("_absolute_deadline", float("inf"))))
+    speculative = payload.get("_speculative") is True
+    # Freshness bounds admission/result usability, not cancellation of a native
+    # call already submitted. Keep the transaction lock until its correlated
+    # response is drained or the independently bounded transport fails.
+    admission_deadline = min(deadline, float(payload.get("_prefetch_deadline", 0))) if speculative else deadline
+    try:
+        with _SPEED.admission.enter(speculative, deadline=admission_deadline):
+            if not _EXTERNAL_WORKER_CALL_LOCK.acquire(timeout=max(0,admission_deadline-time.monotonic())):
+                raise TimeoutError("worker_admission_timeout")
+            try:
+                return _worker_transaction(payload, python, deadline)
+            finally:
+                _EXTERNAL_WORKER_CALL_LOCK.release()
+    except TimeoutError:
+        return {"status":"blocked","code":"worker_admission_timeout","phase":"admission", "worker_restarted":False,
+                "retryable":False,"next_step":"inspect_shared_worker_and_retry_explicitly"}
 
+
+def _worker_transaction(payload, python, deadline):
+    global _EXTERNAL_WORKER_QUARANTINE
+    context = payload.get("_automatic_context")
+    if context is not None and context != _grounding_window_fingerprint():
+        return {"status":"discarded", "code":"scope_invalidated", "worker_restarted":False}
+    if _EXTERNAL_WORKER_QUARANTINE:
+        return {"status":"blocked","code":"worker_transport_quarantined","phase":"transport", "worker_restarted":False,
+                "retryable":False,"next_step":"authorize_owned_worker_recovery_then_explicit_warm",
+                "quarantine_reason":_EXTERNAL_WORKER_QUARANTINE, "native_call_cancelled":False,
+                "recovery":_worker_transport_status()["recovery"]}
+    if time.monotonic() >= deadline:
+        return {"status":"blocked","code":"worker_admission_timeout","phase":"admission"}
+    if payload.get("_speculative") and time.monotonic() >= payload.get("_prefetch_deadline", 0):
+        return {"status": "discarded", "code": "stale_frame"}
+    if payload.get("_speculative"):
+        if (not _EXTERNAL_WORKER_PYTHON or _EXTERNAL_WORKER_SIGNATURE !=
+                _external_worker_signature(_EXTERNAL_WORKER_PYTHON)):
+            return {"status": "blocked", "code": "worker_reload_required", "next_step": "explicit_foreground_warm_after_authorized_reload"}
+        if _EXTERNAL_WORKER_PROC is None or _EXTERNAL_WORKER_PROC.poll() is not None:
+            return {"status": "blocked", "code": "resident_worker_required"}
+    started = {"status":"ok","persistent":True} if payload.get("_speculative") else _start_persistent_external_worker(python, deadline=deadline)
+    if time.monotonic() >= deadline:
+        return {"status":"blocked","code":"worker_startup_deadline","phase":"startup"}
+    if started.get("status") != "ok":
+        return started
+    proc = _EXTERNAL_WORKER_PROC
+    q = _EXTERNAL_WORKER_QUEUE
+    if proc is None or proc.stdin is None or q is None or proc.poll() is not None:
+        return {"status": "error", "backend": "external", "error": "persistent external worker is not running", "start": started}
+    request = dict(payload)
+    request_id = str(request.get("request_id") or uuid.uuid4())
+    request["request_id"] = request_id
+    stale = 0
+    try:
+        proc.stdin.write(json.dumps(request) + "\n")
+        proc.stdin.flush()
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise Empty
+            line = q.get(timeout=remaining)
+            if line is _EXTERNAL_WORKER_EOF:
+                raise RuntimeError(f"persistent external worker exited while awaiting response (exit={proc.poll()})")
+            data = json.loads(line)
+            if data.get("request_id") != request_id:
+                stale += 1
+                continue
+            data.setdefault("backend", "external")
+            data.setdefault("python", _EXTERNAL_WORKER_PYTHON)
+            data["persistent"] = True
+            data["stale_responses_discarded"] = stale
+            if payload.get("_speculative") and time.monotonic() >= payload.get("_prefetch_deadline", 0):
+                return {"status":"discarded", "code":"stale_frame", "request_id":request_id,
+                        "response_drained":True, "native_call_cancelled":False,
+                        "worker_restarted":False, "transport_quarantined":False}
+            return data
+    except Empty:
+        worker_python = _EXTERNAL_WORKER_PYTHON
+        _EXTERNAL_WORKER_QUARANTINE = "timeout"
+        logger.warning("theia_transport_failure reason=timeout speculative=%s submitted=True native_call_cancelled=False", payload.get("_speculative") is True)
+        return {
+            "status": "error",
+            "backend": "external",
+            "error": "persistent external worker timed out",
+            "python": worker_python,
+            "persistent": True,
+            "request_id": request_id,
+            "stale_responses_discarded": stale,
+            "worker_restarted": False,
+            "code": "worker_transport_timeout",
+            "phase": "transport",
+            "transport_quarantined": True,
+            "native_call_cancelled": False,
+            "retryable": False,
+            "next_step": "authorize_owned_worker_recovery_then_explicit_warm",
+            "quarantine_reason": _EXTERNAL_WORKER_QUARANTINE,
+            "recovery": _worker_transport_status()["recovery"],
+        }
+    except Exception as exc:
+        worker_python = _EXTERNAL_WORKER_PYTHON
+        _EXTERNAL_WORKER_QUARANTINE = "transport_error"
+        logger.warning("theia_transport_failure reason=transport_error speculative=%s error_type=%s native_call_cancelled=False", payload.get("_speculative") is True, type(exc).__name__)
+        return {
+            "status": "error",
+            "backend": "external",
+            "error": str(exc),
+            "python": worker_python,
+            "persistent": True,
+            "request_id": request_id,
+            "stale_responses_discarded": stale,
+            "worker_restarted": False,
+            "code": "worker_transport_error",
+            "phase": "transport",
+            "transport_quarantined": True,
+            "native_call_cancelled": False,
+            "retryable": False,
+            "next_step": "authorize_owned_worker_recovery_then_explicit_warm",
+            "quarantine_reason": _EXTERNAL_WORKER_QUARANTINE,
+            "recovery": _worker_transport_status()["recovery"],
+        }
 
 def _external_worker_call(payload: Dict[str, Any], python: Optional[str] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
+    if _EXTERNAL_WORKER_QUARANTINE:
+        return {"status":"blocked", "code":"worker_transport_quarantined", "phase":"transport",
+                "worker_restarted":False, "retryable":False, "native_call_cancelled":False,
+                "quarantine_reason":_EXTERNAL_WORKER_QUARANTINE,
+                "next_step":"authorize_owned_worker_recovery_then_explicit_warm",
+                "recovery":_worker_transport_status()["recovery"]}
     persistent = os.getenv("COMPUTER_USE_LOCATE_PERSISTENT", "true").strip().lower() not in {"0", "false", "no", "off"}
-    if persistent:
-        return _call_persistent_external_worker(payload, python=python, timeout=timeout)
-    return _run_external_locate_worker(payload, python=python, timeout=timeout)
+    segment = None
+    payload = dict(payload)
+    payload["_absolute_deadline"] = min(float(payload.get("_absolute_deadline", float("inf"))), time.monotonic()+float(timeout if timeout is not None else os.getenv("COMPUTER_USE_LOCATE_WORKER_TIMEOUT", "300")))
+    meta = _load_capture_meta(payload.get("image_path"))
+    if payload.get("backend") == "cpp" and meta and meta.get("metadata_provenance") == "trusted_runtime_registry":
+        if meta.get("memory_only"):
+            payload["_memory_required"] = True
+        with _CAPTURE_RGB_LOCK:
+            pixels = _CAPTURE_RGB_REGISTRY.get(os.path.abspath(str(payload["image_path"])))
+        if pixels is not None:
+            from multiprocessing import shared_memory
+            segment = shared_memory.SharedMemory(create=True, size=len(pixels))
+            segment.buf[:] = pixels
+            payload["frame_transport"] = {"name": segment.name, "width": meta["width"],
+                "height": meta["height"], "size": len(pixels), "sha256": hashlib.sha256(pixels).hexdigest()}
+    try:
+        if persistent:
+            return _call_persistent_external_worker(payload, python=python, timeout=timeout)
+        return _run_external_locate_worker(payload, python=python, timeout=timeout)
+    finally:
+        if segment is not None:
+            segment.close()
+            segment.unlink()
 
 
 def _run_external_locate_worker(payload: Dict[str, Any], python: Optional[str] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
+    budget = float(timeout if timeout is not None else os.getenv("COMPUTER_USE_LOCATE_WORKER_TIMEOUT", "300"))
+    deadline = time.monotonic() + budget
+    if not _EXTERNAL_WORKER_CALL_LOCK.acquire(timeout=max(0, budget)):
+        return {"status":"blocked", "code":"worker_admission_timeout"}
+    try:
+        return _run_external_locate_worker_locked(payload, python, max(0, deadline-time.monotonic()))
+    finally:
+        _EXTERNAL_WORKER_CALL_LOCK.release()
+
+
+def _run_external_locate_worker_locked(payload, python=None, timeout=None):
     external_python = _external_python_path(python)
     if not external_python:
         return {"status": "error", "backend": "external", "error": "No LocateAnything worker Python is ready yet. THEIA auto-installs one outside the Hermes venv by default; set COMPUTER_USE_LOCATE_PYTHON manually or run scripts/setup_locate_worker.py if needed."}
@@ -1614,7 +1885,7 @@ def _run_external_locate_worker(payload: Dict[str, Any], python: Optional[str] =
             text=True,
             capture_output=True,
             timeout=float(timeout or os.getenv("COMPUTER_USE_LOCATE_WORKER_TIMEOUT", "300")),
-            env=os.environ.copy(),
+            env=_worker_subprocess_env(),
         )
     except Exception as exc:
         return {"status": "error", "backend": "external", "error": str(exc), "python": external_python, "worker": str(worker)}
@@ -1636,13 +1907,16 @@ def _run_external_locate_worker(payload: Dict[str, Any], python: Optional[str] =
 
 
 def _locate_backend_preference(backend: Optional[str] = None) -> str:
-    value = backend or os.getenv("COMPUTER_USE_LOCATE_BACKEND", "cpp")
-    return str(value).strip().lower()
+    value = str(backend or os.getenv("COMPUTER_USE_LOCATE_BACKEND", "cpp")).strip().lower()
+    if value == "auto":
+        configured = os.getenv("COMPUTER_USE_LOCATE_BACKEND", "cpp").strip().lower()
+        return configured if configured != "auto" else "auto"
+    return value
 
 
 def _locate_payload_options(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     keys = [
-        "task", "output_type", "strategy", "region", "max_side", "refine_max_side",
+        "task", "output_type", "strategy", "region", "roi_fallback", "max_side", "refine_max_side",
         "max_new_tokens", "generation_mode", "temperature", "top_p",
         "repetition_penalty", "do_sample", "verbose", "dtype",
         "refine_area_ratio", "refine_pad", "point_refine_radius", "prompt_style",
@@ -1668,6 +1942,10 @@ class _LocateModel:
         self.device = None
 
     def load(self, device: Optional[str] = None) -> Dict[str, Any]:
+        with _EXTERNAL_WORKER_CALL_LOCK:
+            return self._load_locked(device)
+
+    def _load_locked(self, device: Optional[str] = None) -> Dict[str, Any]:
         requested = None if device in {None, "", "auto"} else str(device)
         if self.model is not None:
             if requested is None or requested == self.device:
@@ -1708,7 +1986,7 @@ def _warm(device: Optional[str] = None, backend: Optional[str] = None, python: O
     external_python = _external_python_path(python)
     if pref == "auto" and external_python:
         external = _external_worker_call({"action": "warm", "backend": "auto", "device": device, "model_id": os.getenv("COMPUTER_USE_LOCATE_MODEL")}, python=python, timeout=90)
-        if external.get("status") in {"loaded", "already_loaded"}:
+        if external.get("status") in {"loaded", "already_loaded"} or str(external.get("code", "")).startswith("worker_"):
             return external
     elif pref == "auto":
         bootstrap = _start_locate_worker_bootstrap()
@@ -1727,6 +2005,15 @@ def _load_capture_meta(image_path: Optional[str]) -> Optional[Dict[str, Any]]:
     if not image_path:
         return None
     absolute = os.path.abspath(str(image_path))
+    registered = _CAPTURE_META_REGISTRY.get(absolute)
+    if registered and registered.get("memory_only"):
+        with _CAPTURE_RGB_LOCK:
+            pixels = _CAPTURE_RGB_REGISTRY.get(absolute)
+        if pixels is None:
+            return None
+        out = dict(registered)
+        out["metadata_provenance"] = "trusted_runtime_registry"
+        return out
     try:
         stat = os.stat(absolute)
     except OSError:
@@ -1775,6 +2062,7 @@ def _screen_adjust_locate_hit(hit: Dict[str, Any], image_path: Optional[str]) ->
     ox = int(meta.get("screen_origin", {}).get("x", 0))
     oy = int(meta.get("screen_origin", {}).get("y", 0))
     out = dict(hit)
+    out["image_path"] = image_path
     if ox == 0 and oy == 0:
         out["coordinate_space"] = "screen_pixels"
         out["screen_coordinates_valid"] = True
@@ -1924,9 +2212,11 @@ def _parse_box(text: str, image_size: Tuple[int, int]) -> Optional[Tuple[int, in
 
 
 def _locate(description: str, image_path: Optional[str] = None, threshold: float = 0.3, device: Optional[str] = None, backend: Optional[str] = None, python: Optional[str] = None, **_: Any) -> List[Dict[str, Any]]:
-    if not image_path:
-        image_path = _capture_for_grounding(description)["image_path"]
     pref = _locate_backend_preference(backend)
+    if not image_path:
+        capture = _capture_for_grounding(description, _materialize=pref != "cpp")
+        image_path = capture["image_path"]
+        _SPEED.prepare_capture(capture, pref)
     model_id = os.getenv("COMPUTER_USE_LOCATE_MODEL")
     if pref in {"external", "worker", "cpp"}:
         # cpp is handled inside the worker via _locate_with_cpp when COMPUTER_USE_LOCATE_BACKEND=cpp
@@ -1957,7 +2247,7 @@ def _locate(description: str, image_path: Optional[str] = None, threshold: float
             "max_new_tokens": int(os.getenv("COMPUTER_USE_LOCATE_MAX_NEW_TOKENS", "32")),
             **_locate_payload_options(_),
         }, python=python)
-        if external.get("status") in {"found", "not_found"}:
+        if external.get("status") in {"found", "not_found"} or str(external.get("code", "")).startswith("worker_"):
             return [_screen_adjust_locate_hit(external, image_path)]
         # Auto mode can fall back to internal. Explicit external mode returns the external error above.
     elif pref == "auto":
@@ -2024,10 +2314,11 @@ def _locate_batch(
     """
     if not isinstance(targets, list) or not targets:
         return _result("error", error="targets must be a non-empty list")
-    if not image_path:
-        capture = _capture_for_grounding([target.get("description", "") for target in targets if isinstance(target, dict)])
-        image_path = capture["image_path"]
     pref = _locate_backend_preference(backend)
+    if not image_path:
+        capture = _capture_for_grounding([target.get("description", "") for target in targets if isinstance(target, dict)], _materialize=pref != "cpp")
+        image_path = capture["image_path"]
+        _SPEED.prepare_capture(capture, pref)
     if pref == "internal":
         resolved: List[Dict[str, Any]] = []
         for target in targets:
@@ -2074,16 +2365,22 @@ def _locate_batch(
     return adjusted
 
 def _find_click(description: str, image_path: Optional[str] = None, button: str = "left", click_anchor: str = "center", **kwargs: Any) -> Dict[str, Any]:
+    fingerprint = _grounding_window_fingerprint()
     hits = _locate(description=description, image_path=image_path, **kwargs)
     if not hits or hits[0].get("status") != "found":
         return _result("not_found", description=description, locate=hits)
     hit = hits[0]
+    if _locate_backend_preference(kwargs.get("backend")) == "cpp" and hit.get("runtime") != "dll":
+        return _result("blocked", code="untrusted_grounding", description=description, locate=hits, executed_steps=0)
     if hit.get("screen_coordinates_valid") is not True:
         return _result("blocked", error="locate result lacks trusted screen-coordinate metadata", description=description, locate=hits)
     try:
         x, y = _pick_anchor_point(hit, click_anchor)
     except ValueError:
         x, y = int(hit["center"]["x"]), int(hit["center"]["y"])
+    if not _SPEED.validate_action_frame(hit.get("image_path") or image_path, fingerprint, [(x, y)]):
+        return _result("blocked", code="stale_capture", description=description, locate=hits,
+                       next_step="reobserve_or_inspect_image_evidence", executed_steps=0)
     clicked = _click(x, y, button=button)
     clicked["locate"] = hit
     clicked["click_point"] = {"x": x, "y": y, "anchor": click_anchor}
@@ -2104,10 +2401,14 @@ def _find_drag(
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """Locate drag source + drop target on one screenshot, then perform a held drag path."""
+    fingerprint = _grounding_window_fingerprint()
     capture_meta: Optional[Dict[str, Any]] = None
     if not image_path:
-        capture_meta = _capture_for_grounding([from_description, to_description], region=capture_region)
+        pref = _locate_backend_preference(kwargs.get("backend", "worker"))
+        capture_meta = _capture_for_grounding([from_description, to_description], region=capture_region,
+                                             _materialize=pref != "cpp")
         image_path = capture_meta["image_path"]
+        _SPEED.prepare_capture(capture_meta, pref)
     locate_opts = _locate_drag_defaults({k: v for k, v in kwargs.items() if k in {
         "threshold", "device", "backend", "python", "output_type", "task", "strategy", "region",
         "max_side", "refine_max_side", "point_refine_radius", "max_new_tokens", "generation_mode",
@@ -2133,6 +2434,9 @@ def _find_drag(
         x2, y2 = _pick_anchor_point(to_hit, to_anchor)
     except ValueError as exc:
         return _result("error", error=str(exc), from_locate=from_hit, to_locate=to_hit)
+    if not _SPEED.validate_action_frame(image_path, fingerprint, [(x1, y1), (x2, y2)]):
+        return _result("blocked", code="stale_capture", executed_steps=0,
+                       from_locate=from_hit, to_locate=to_hit)
     points = _interpolate_drag_points(x1, y1, x2, y2, path_segments)
     dragged = _drag_path(
         points,
@@ -2294,6 +2598,8 @@ def _grounding_window_fingerprint() -> Dict[str, Any]:
     if window:
         return {
             "kind": "window",
+            "invalidation_epoch": _SPEED.epoch,
+            "title": window.get("title"),
             "virtual_screen": virtual,
             "monitors": topology,
             "handle": window.get("handle"),
@@ -2303,7 +2609,7 @@ def _grounding_window_fingerprint() -> Dict[str, Any]:
             "width": int(window["width"]), "height": int(window["height"]),
             "client_bounds": window.get("client_bounds"),
         }
-    return {"kind": "screen", "virtual_screen": virtual, "monitors": topology}
+    return {"kind": "screen", "invalidation_epoch": _SPEED.epoch, "virtual_screen": virtual, "monitors": topology}
 
 
 def _grounding_cache_entry(cache_id: str) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
@@ -2316,6 +2622,13 @@ def _grounding_cache_entry(cache_id: str) -> Tuple[Optional[Dict[str, Any]], Opt
     current = _grounding_window_fingerprint()
     if entry.get("window_fingerprint") != current:
         return None, _result("stale", error="cached grounding is invalid because active window/screen geometry changed; recapture and recalibrate", cache_id=key, cached_window_fingerprint=entry.get("window_fingerprint"), current_window_fingerprint=current)
+    if entry.get("region_guard"):
+        guard = entry["region_guard"]
+        region = [*guard["origin"], *guard["size"]]
+        image, origin = _capture_guard_image(region)
+        if list(origin) != guard["origin"] or not _speed_module("speed_regions").check_geometry_guard(image, guard):
+            return None, _result("stale", code="region_context_changed", cache_id=key,
+                                error="control/context pixels changed outside declared dynamic content; recapture and recalibrate")
     if entry.get("visual_guard"):
         verification = _verify_visual_guard(entry.get("visual_guard"))
         if not verification.get("matched"):
@@ -2325,6 +2638,9 @@ def _grounding_cache_entry(cache_id: str) -> Tuple[Optional[Dict[str, Any]], Opt
                 cache_id=key,
                 visual_guard_verification=verification,
             )
+    if entry.get("window_fingerprint") != _grounding_window_fingerprint():
+        return None, _result("stale", code="window_changed_during_verification", cache_id=key,
+                            error="window/layout/DPI changed during visual validation; recapture and recalibrate")
     return entry, None
 
 
@@ -2333,14 +2649,24 @@ def _remember_groundings(cache_id: str, targets: List[Dict[str, str]], image_pat
     key = str(cache_id or "").strip()
     if not key:
         return _result("error", error="cache_id is required")
+    dynamic_regions = options.pop("dynamic_regions", [])
     result = _locate_batch(targets=targets, image_path=image_path, mode=mode, backend=backend, device=device, **options)
     found = [item for item in result.get("targets") or [] if isinstance(item, dict) and item.get("status") == "found" and item.get("center")]
     if len(found) != len(targets):
         return _result("not_found", error="all targets must resolve before creating a cache", cache_id=key, locate_batch=result)
     cached = {str(item["id"]): {"id": str(item["id"]), "description": str(item.get("description", "")), "center": {"x": int(item["center"]["x"]), "y": int(item["center"]["y"])}, "box": item.get("box")} for item in found}
     fingerprint = _grounding_window_fingerprint()
+    meta = _load_capture_meta(result.get("image_path"))
+    if not meta or any(item.get("screen_coordinates_valid") is not True for item in found):
+        return _result("blocked", code="trusted_geometry_required", cache_id=key)
+    origin = meta["screen_origin"]
+    try:
+        region_guard = _speed_module("speed_regions").geometry_guard(
+            _SPEED._image(result["image_path"]), (origin["x"], origin["y"]), cached, dynamic_regions)
+    except ValueError as exc:
+        return _result("blocked", code="invalid_dynamic_region", error=str(exc), cache_id=key)
     visual_guard = _build_visual_guard(result.get("image_path"), cached)
-    _GROUNDING_CACHE[key] = {"kind": "targets", "created_at": time.time(), "window_fingerprint": fingerprint, "visual_guard": visual_guard, "image_path": result.get("image_path"), "targets": cached}
+    _GROUNDING_CACHE[key] = {"kind": "targets", "created_at": time.time(), "window_fingerprint": fingerprint, "visual_guard": visual_guard, "region_guard": region_guard, "image_path": result.get("image_path"), "targets": cached}
     return _result("ok", cache_id=key, kind="targets", cached_targets=list(cached.values()), window_fingerprint=fingerprint, visual_guard=visual_guard, locate_batch=result)
 
 
@@ -2379,7 +2705,13 @@ def _calibrate_grid(cache_id: str, description: str, columns: int, rows: int, im
     guard_target = {"grid": {"center": {"x": int(round((x1 + x2) / 2)), "y": int(round((y1 + y2) / 2))}}}
     guard_image_path = hit.get("image_path") or image_path
     visual_guard = _build_visual_guard(guard_image_path, guard_target)
-    _GROUNDING_CACHE[key] = {"kind": "grid", "created_at": time.time(), "window_fingerprint": fingerprint, "visual_guard": visual_guard, "image_path": guard_image_path, "description": description, "geometry": geometry}
+    meta = _load_capture_meta(guard_image_path)
+    if not meta or hit.get("screen_coordinates_valid") is not True:
+        return _result("blocked", code="trusted_geometry_required", cache_id=key)
+    origin = meta["screen_origin"]
+    region_guard = _speed_module("speed_regions").geometry_guard(
+        _SPEED._image(guard_image_path), (origin["x"], origin["y"]), guard_target, [])
+    _GROUNDING_CACHE[key] = {"kind": "grid", "created_at": time.time(), "window_fingerprint": fingerprint, "visual_guard": visual_guard, "region_guard": region_guard, "image_path": guard_image_path, "description": description, "geometry": geometry}
     return _result("ok", cache_id=key, kind="grid", geometry=geometry, window_fingerprint=fingerprint, visual_guard=visual_guard, locate=hit)
 
 
@@ -2448,7 +2780,21 @@ _SAFE_STEP_SCHEMA = {
 }
 
 def _register(name: str, description: str, properties: Dict[str, Any], required: Optional[List[str]], handler) -> None:
-    schema = _schema(name, description, properties, required)
+    if name in {"computer_use_observe_stage", "computer_use_locate", "computer_use_locate_batch",
+                "computer_use_find_click", "computer_use_find_drag", "computer_use_batch",
+                "computer_use_dynamic_workflow", "computer_use_verify_target"}:
+        description += (" For known symbolic targets, no separate capture tool call is needed: "
+                        "THEIA automatically acquires fresh local pixels in memory and prepares on the same "
+                        "serialized native worker (omit image_path). Private local UI needs no public opt-in; "
+                        "never implicitly invokes Jev. Unknown screen content, visual reasoning, or image evidence "
+                        "still requires explicit computer_use_capture_screen and image inspection. "
+                        "Symbolic actions fail closed on changed pixels/window; no stale ROI authority.")
+    elif name == "computer_use_capture_screen":
+        description += (" Explicit materialized image evidence for unknown content, visual reasoning, or "
+                        "inspection. Not a prerequisite for ordinary known-target THEIA grounding/actions; "
+                        "those acquire fresh pixels internally. Memory-only frame handles are not viewable images.")
+    description += " Via tool_call use one local call per invocation (calls array length 1); use plugin batch tools for eligible safe stages, not multiple local entries."
+    schema = _schema(name, description, _SPEED.extend_schema(name, properties), required)
     wrapped = _wrap(handler)
     if _PLUGIN_CTX is not None:
         _PLUGIN_CTX.register_tool(
@@ -2475,6 +2821,101 @@ def _register(name: str, description: str, properties: Dict[str, Any], required:
         emoji="🖱️",
     )
 
+def _decide_next(*, goal, window, snapshot_id, candidates, previous_action=None,
+                 min_confidence=0.75, grounding_manifest=None):
+    """Return a decision proposal; never perform a UI action."""
+    import importlib.util
+    module_path = Path(__file__).resolve().parent / "system_one_decision.py"
+    spec = importlib.util.spec_from_file_location("theia_system_one_decision", module_path)
+    if spec is None or spec.loader is None:
+        return {"status": "escalate", "reason": "provider_unavailable"}
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.decide_next_step(module.TypeSafeDecisionProvider(), goal=goal, window=window,
+                                   snapshot_id=snapshot_id, candidates=candidates,
+                                   previous_action=previous_action, min_confidence=min_confidence,
+                                   grounding_manifest=grounding_manifest)
+
+def _jev_loop(*, goal, window, stages, completion_target, public_context=False,
+              region=None, max_duration_ms=60000):
+    """Run an explicitly planned, read-only-navigation loop without model turns.
+
+    This tool never invents a candidate or delegates action authority to Jev.
+    All candidate descriptions must be approved as public before transmission.
+    """
+    import importlib.util
+    module_path = Path(__file__).resolve().parent / "system_one_loop.py"
+    spec = importlib.util.spec_from_file_location("theia_system_one_loop", module_path)
+    if spec is None or spec.loader is None:
+        return _result("escalate", reason="controller_unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if region is not None and (not isinstance(region, list) or len(region) != 4 or
+                               any(not isinstance(v, int) or isinstance(v, bool) for v in region)):
+        return _result("blocked", reason="invalid_region")
+    scope = "region" if region is not None else "active_window"
+    latest_observation = None
+    worker_deadline = time.monotonic() + (max_duration_ms / 1000 if type(max_duration_ms) is int and 1000 <= max_duration_ms <= 120000 else 60)
+    def observe(targets, timeout_seconds=None):
+        nonlocal latest_observation
+        latest_observation = _observe_stage(targets=targets, scope=scope, region=region, mode="exact",
+                              _materialize_capture=False,
+                              timeout_seconds=min(timeout_seconds or 120, max(0.001, worker_deadline - time.monotonic())),
+                              backend="cpp", device="cuda", output_type="point",
+                              strategy="direct", max_side=1024, max_new_tokens=32,
+                              generation_mode="hybrid")
+        return latest_observation
+    def capture():
+        return _capture_screen(scope=scope, region=region, _materialize=False)
+    def preflight(candidate):
+        description = candidate["description"]
+        if _BATCH_HIGH_IMPACT_RE.search(description):
+            return "high_impact_target"
+        step = {"action": candidate["action"], "risk": "non_destructive",
+                "target_id": candidate["id"], "target_hint": description,
+                "safe_purpose": candidate["safe_purpose"]}
+        reason = _batch_block_reason(step, 0, allow_symbolic=True)
+        pattern = _BATCH_SAFE_PURPOSE_RE.get(candidate["safe_purpose"])
+        return reason or ("purpose_mismatch" if pattern is None or not pattern.search(description) else None)
+    def action(*, target_id, target, image_path, action, safe_purpose, deadline):
+        if (not latest_observation or latest_observation["capture"]["image_path"] != image_path
+                or not module._grounded(latest_observation, [t["id"] for t in latest_observation["grounding"]["targets"]])):
+            return _result("blocked", reason="untrusted_grounding", executed_steps=0)
+        hit = next((t for t in latest_observation["grounding"]["targets"] if t["id"] == target_id), None)
+        if not hit or hit.get("description") != target["description"]:
+            return _result("blocked", reason="untrusted_grounding", executed_steps=0)
+        # Only the loop's private trusted observation supplies coordinates. The
+        # controller has just recaptured and checked exact pixels and bounds.
+        step = {"action": action, "risk": "non_destructive",
+                "target_hint": target["description"], "safe_purpose": safe_purpose,
+                "x": hit["center"]["x"], "y": hit["center"]["y"]}
+        return _computer_use_batch(steps=[step], deadline=deadline)
+    return module.run_loop(goal=goal, window=window, stages=stages,
+                           completion_target=completion_target, public_context=public_context,
+                           observe=observe, capture=capture, decide=_decide_next,
+                           action=action, active_window=_active_window, preflight=preflight,
+                           max_duration_ms=max_duration_ms, timed_observe=observe,
+                           readiness=lambda pixel: _pixel_matches(pixel[0], pixel[1], pixel[2:5], pixel[5]).get("matches") is True)
+
+
+_SPEED = _speed_module("speed_runtime").SpeedRuntime(globals(), _speed_module)
+
+
+def _invalidate_before(fn):
+    import functools
+    @functools.wraps(fn)
+    def wrapped(*args, **kwargs):
+        # Failures/outcome unknown invalidate too; no action authority is added.
+        _SPEED.invalidate(fn.__name__)
+        return fn(*args, **kwargs)
+    return wrapped
+
+
+for _name in ("_click", "_type", "_press", "_key_down", "_hotkey", "_scroll", "_focus_window",
+              "_open_app", "_mouse_down", "_drag", "_drag_relative", "_drag_path"):
+    globals()[_name] = _invalidate_before(globals()[_name])
+
+
 def register_tools(ctx=None) -> None:
     """Register all windows_computer_use tools with Hermes.
 
@@ -2485,6 +2926,30 @@ def register_tools(ctx=None) -> None:
     old_ctx = _PLUGIN_CTX
     _PLUGIN_CTX = ctx
     try:
+        _SPEED.register(_register)
+        _register("computer_use_worker_status", "Read screenshot-free owned isolated worker transport status; never captures, starts an engine, or repairs quarantine.", {}, [], _worker_transport_status)
+        _register("computer_use_recover_worker", "Explicit authorized FOREGROUND disposal of a quarantined owned isolated worker only. Holds transaction/lifecycle locks, confirms process exit before clearing quarantine. Never restarts gateway or starts an engine. Then warm explicitly and recapture/reground.", {"authorize":{"type":"boolean","enum":[True]}, "timeout_seconds":{"type":"number","minimum":0.001,"maximum":30,"default":5}}, ["authorize"], _recover_worker)
+        _register("computer_use_decide_next", "Read-only Jev System One proposal from explicitly supplied, non-destructive LocateAnything candidates. Never executes an action; caller must verify capture provenance, safety, and current UI before acting. Sends goal, window, and candidate descriptions to TypeSafe; requires TYPESAFE_API_KEY in the gateway environment.", {"goal": {"type": "string", "maxLength": 512}, "window": {"type": "string", "maxLength": 512}, "snapshot_id": {"type": "string", "maxLength": 512}, "candidates": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}, "risk": {"type": "string", "enum": ["non_destructive"]}}, "required": ["id", "description", "risk"]}}, "previous_action": {"type": "string"}, "grounding_manifest": {"type": "object", "description": "Optional trusted compact visibility manifest (no pixels or coordinates): stage_index/count, previous_verified, visible ID/description/purpose/coarse position"}, "min_confidence": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.75}}, ["goal", "window", "snapshot_id", "candidates"], _decide_next)
+        jev_candidate = {"type": "object", "properties": {
+            "id": {"type": "string"}, "description": {"type": "string"},
+            "risk": {"type": "string", "enum": ["non_destructive"]},
+            "safe_purpose": {"type": "string", "enum": sorted(_BATCH_SAFE_PURPOSE_RE)},
+            "action": {"type": "string", "enum": ["click", "double_click"]}},
+            "required": ["id", "description", "risk", "safe_purpose", "action"]}
+        jev_stage = {"type": "object", "properties": {
+            "candidates": {"type": "array", "minItems": 1, "maxItems": 16, "items": jev_candidate}},
+            "required": ["candidates"]}
+        jev_schema = {
+            "goal": {"type": "string", "maxLength": 512},
+            "window": {"type": "string", "maxLength": 512, "description": "Stable active-window title fragment"},
+            "public_context": {"type": "boolean", "description": "Confirm goal/window/candidates may be sent to TypeSafe"},
+            "stages": {"type": "array", "minItems": 1, "maxItems": 4, "items": jev_stage},
+            "completion_target": {"type": "object", "properties": {
+                "id": {"type": "string"}, "description": {"type": "string"}},
+                "required": ["id", "description"]},
+            "region": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
+            "max_duration_ms": {"type": "integer", "minimum": 1000, "maximum": 120000, "default": 60000}}
+        _register("computer_use_jev_loop", "Experimental bounded THEIA loop: Hermes supplies public goal and safe stage candidates once; Jev selects IDs; THEIA grounds, preflights, acts, and verifies without a main-model call between stages. Stops for Hermes on ambiguity, unsafe targets, stale UI, or failed verification. Sends public goal/window/candidate text to TypeSafe; no pixels or coordinates.", jev_schema, ["goal", "window", "stages", "completion_target", "public_context"], _jev_loop)
         _register("computer_use_capture_screen", "Capture the desktop screenshot and return an image path.", {"display_index": {"type": "integer", "default": 0}, "question": {"type": "string"}, "region": {"description": "Optional [x, y, width, height] capture region", "type": "array", "items": {"type": "integer"}}, "all_screens": {"type": "boolean", "default": False}, "scope": {"type": "string", "enum": ["primary", "virtual_desktop", "active_window", "active_client", "region"], "default": "primary"}}, [], _capture_screen)
         _register("computer_use_observe_stage", "Capture one immutable active-window/client/desktop stage and optionally resolve up to 16 targets against that exact image. Read-only; performs no GUI action.", {"targets": {"type": "array", "maxItems": 16, "items": {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id", "description"]}}, "scope": {"type": "string", "enum": ["primary", "virtual_desktop", "active_window", "active_client", "region"], "default": "active_window"}, "region": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4}, "mode": {"type": "string", "enum": ["exact", "auto", "one_pass"], "default": "exact"}, "backend": {"type": "string", "enum": ["cpp", "auto", "worker", "external", "internal"], "default": "cpp"}, "device": {"type": "string", "enum": ["cuda", "auto", "cpu"], "default": "cuda"}, "output_type": {"type": "string", "enum": ["point", "box"], "default": "point"}, "strategy": {"type": "string", "enum": ["direct", "refine", "coarse_refine"], "default": "direct"}, "max_side": {"type": "integer", "default": 1024}, "max_new_tokens": {"type": "integer", "default": 32}, "generation_mode": {"type": "string", "enum": ["fast", "hybrid", "slow"], "default": "hybrid"}}, [], _observe_stage)
         _register("computer_use_dynamic_workflow", "Execute up to 8 bounded non-destructive UI stages. The whole workflow is safety-preflighted first; every stage captures fresh pixels, independently grounds exact targets, then runs at most 12 safe actions. Consequential targets, credentials, submissions, payments, permissions, arbitrary code, imports, files, and network access are blocked.", {"stages": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "object", "properties": {"scope": {"type": "string", "enum": ["primary", "virtual_desktop", "active_window", "active_client", "region"], "default": "active_window"}, "region": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4}, "static_screen": {"type": "boolean", "enum": [True], "description": "Required true when the stage contains actions; coordinates are valid only within this stage."}, "targets": {"type": "array", "maxItems": 16, "items": {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id", "description"]}}, "steps": {"type": "array", "maxItems": 12, "description": "Every state-changing action must end the stage (an optional trailing wait is allowed); recapture before the next action.", "items": _SAFE_STEP_SCHEMA}, "locate_mode": {"type": "string", "enum": ["exact", "auto", "one_pass"], "default": "exact"}, "backend": {"type": "string", "enum": ["cpp", "auto", "worker", "external", "internal"], "default": "cpp"}, "device": {"type": "string", "enum": ["cuda", "auto", "cpu"], "default": "cuda"}, "locate_options": {"type": "object"}}}}, "stop_on_failure": {"type": "boolean", "default": True}, "max_duration_ms": {"type": "integer", "minimum": 1000, "maximum": 120000, "default": 120000}}, ["stages"], _dynamic_workflow)

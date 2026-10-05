@@ -13,17 +13,10 @@ dependencies = [
   "pywin32>=306; platform_system == 'Windows'",
 ]
 
-[project.optional-dependencies]
-locate = [
-  "opencv-python>=4.8.0",
-  "transformers==4.57.1",
-  "peft>=0.13.0",
-  "accelerate>=0.33.0",
-  "sentencepiece>=0.2.0",
-  "lmdb>=1.5.0",
-  "decord>=0.6.0",
-  "hf_xet>=1.1.0",
-]
+# The Python LocateAnything worker has its own isolated environment, installed
+# from requirements-locate.txt by scripts/setup_locate_worker.py. Do not expose
+# those dependencies as project extras: Hermes's uv workspace resolves every
+# member extra against core pins even when the extra is not selected.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

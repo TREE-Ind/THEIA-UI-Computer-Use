@@ -69,6 +69,7 @@ def _get_cpp_stage(
     region: Optional[Any],
     max_side: int,
     identity: Optional[Tuple[Any, ...]] = None,
+    frame_image: Any = None,
 ) -> Dict[str, Any]:
     """Open/crop/resize an immutable screenshot once per exact stage."""
     from PIL import Image
@@ -83,8 +84,11 @@ def _get_cpp_stage(
         return cached
 
     started = time.perf_counter()
-    with Image.open(image_path) as opened:
-        full_image = opened.convert("RGB")
+    if frame_image is not None:
+        full_image = frame_image.copy()
+    else:
+        with Image.open(image_path) as opened:
+            full_image = opened.convert("RGB")
     source_size = full_image.size
     work_image, offset = _crop_image(full_image, region)
     work_size = work_image.size
@@ -293,6 +297,13 @@ class _LocateAnythingDLL:
                     except OSError:
                         pass
         self.lib = ctypes.CDLL(self.dll_path)
+        # Windows pins this file while loaded; retain its byte identity on the
+        # runtime, not a later parent-side source-only deployment observation.
+        digest = hashlib.sha256()
+        with open(self.dll_path, 'rb') as source:
+            for block in iter(lambda: source.read(8 * 1024 * 1024), b''):
+                digest.update(block)
+        self.dll_sha256 = digest.hexdigest()
         self._abi_version = self._symbol("la_capi_abi_version")
         self._abi_version.argtypes = []
         self._abi_version.restype = ctypes.c_int
@@ -553,7 +564,6 @@ def _cpp_runtime_paths() -> Tuple[str, str]:
     model_candidates = [
         configured_model,
         os.path.join(base, "locate-anything-q5_0.gguf"),
-        r"C:\Users\mulle\dev\locate-anything.cpp\models\locate-anything-q5_0.gguf",
         os.path.join(base, "locate-anything-q8_0.gguf"),
     ]
     model_path = next((path for path in model_candidates if path and os.path.exists(path)), None)
@@ -725,8 +735,9 @@ def _cpp_detect_image(
     cli_path: str,
     max_new_tokens: int = 32,
     signature: Optional[Tuple[Any, ...]] = None,
+    allow_file_fallback: bool = True,
 ) -> Dict[str, Any]:
-    """Detect from an RGB PIL image, preferring ABI-3 raw-memory transport."""
+    """Detect from RGB; internal memory frames fail closed without raw ABI."""
     runtime = _get_cpp_dll_runtime(model_path)
     raw_error: Optional[str] = None
     if runtime is not None and callable(getattr(runtime, "prepare_rgb", None)):
@@ -763,6 +774,8 @@ def _cpp_detect_image(
         except Exception as exc:
             raw_error = str(exc)
 
+    if not allow_file_fallback:
+        raise RuntimeError("raw_memory_required: " + (raw_error or "native raw RGB runtime unavailable"))
     temp_path = tempfile.NamedTemporaryFile(suffix=".png", delete=False).name
     try:
         image.save(temp_path)
@@ -789,7 +802,7 @@ def _locate_with_cpp(payload: Dict[str, Any]) -> Dict[str, Any]:
     except (OSError, ValueError) as exc:
         return {"status": "error", "backend": "cpp", "error": str(exc)}
     cached = _CPP_RESULT_CACHE.get(key)
-    if cached is not None:
+    if cached is not None and (not payload.get("_memory_required") or cached.get("runtime") == "dll"):
         _CPP_RESULT_CACHE.move_to_end(key)
         result = copy.deepcopy(cached)
         result["cache_hit"] = True
@@ -798,7 +811,13 @@ def _locate_with_cpp(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     request = dict(payload)
     request["image_identity"] = key[0]
-    result = _locate_with_cpp_uncached(request)
+    try:
+        result = _locate_with_cpp_uncached(request)
+    except RuntimeError as exc:
+        if "raw_memory_required" not in str(exc):
+            raise
+        return {"status":"blocked", "backend":"cpp", "code":"raw_memory_required",
+                "error":str(exc), "encoded_file_ipc":False, "next_step":"inspect_native_raw_abi"}
     result = dict(result)
     result["cache_hit"] = False
     result["result_cache"] = "exact"
@@ -841,6 +860,7 @@ def _locate_with_cpp_uncached(payload: Dict[str, Any]) -> Dict[str, Any]:
             cli_path,
             max_new_tokens=max_new_tokens,
             signature=signature,
+            **({"allow_file_fallback":False} if payload.get("_memory_required") else {}),
         )
 
     def _timed_pass(phase: str, result: Dict[str, Any], **details: Any) -> Dict[str, Any]:
@@ -859,6 +879,7 @@ def _locate_with_cpp_uncached(payload: Dict[str, Any]) -> Dict[str, Any]:
             payload.get("region"),
             max_side,
             identity=payload.get("image_identity"),
+            frame_image=payload.get("_frame_image"),
         )
         work_image = stage["work_image"]
         offset = stage["offset"]
@@ -1166,6 +1187,9 @@ def _locate(payload: Dict[str, Any]) -> Dict[str, Any]:
         configured = os.getenv("COMPUTER_USE_LOCATE_BACKEND", "cpp").lower().strip()
         backend = configured if configured != "auto" else "cpp"
     if backend == "cpp":
+        if payload.get("region") is not None:
+            from speed_grounding import locate_roi
+            return locate_roi(payload, _locate_with_cpp)
         return _locate_with_cpp(payload)
 
     load = _load(device=device, model_id=model_id, dtype_name=payload.get("dtype"))
@@ -1475,6 +1499,55 @@ def _locate_batch(payload: Dict[str, Any]) -> Dict[str, Any]:
 def _handle(payload: Dict[str, Any]) -> Dict[str, Any]:
     started = time.perf_counter()
     action = payload.get("action", "locate")
+    if payload.get("frame_transport") is not None:
+        try:
+            from multiprocessing import shared_memory
+            from PIL import Image
+            frame = payload["frame_transport"]
+            width, height, size = frame["width"], frame["height"], frame["size"]
+            if (any(type(v) is not int for v in (width, height, size)) or
+                    width <= 0 or height <= 0 or size != width * height * 3 or size > 128 * 1024 * 1024):
+                raise ValueError("invalid shared RGB dimensions")
+            segment = shared_memory.SharedMemory(name=frame["name"])
+            try:
+                if segment.size < size:
+                    raise ValueError("short shared RGB buffer")
+                pixels = bytes(segment.buf[:size])
+            finally:
+                segment.close()
+            if hashlib.sha256(pixels).hexdigest() != frame["sha256"]:
+                raise ValueError("shared RGB digest mismatch")
+            payload = dict(payload)
+            payload["image_identity"] = ("rgb-v1", width, height, frame["sha256"])
+            payload["_frame_image"] = Image.frombytes("RGB", (width, height), pixels)
+        except Exception as exc:
+            return _finish_response(payload, {"status": "error", "error": str(exc)}, started)
+    if action == "prepare_frame":
+        # Explicit immutable input only; no capture and no inference/decode.
+        try:
+            if time.monotonic() >= float(payload.get("_prefetch_deadline", float("inf"))):
+                return _finish_response(payload, {"status": "discarded", "code": "stale_frame"}, started)
+            stage = _get_cpp_stage(str(payload["image_path"]), payload.get("region"),
+                                   int(payload.get("max_side", 1024)),
+                                   identity=payload.get("image_identity"), frame_image=payload.get("_frame_image"))
+            _, model_path = _cpp_runtime_paths()
+            if payload.get("_speculative"):
+                runtime = _CPP_DLL_RUNTIME
+                if runtime is None:
+                    return _finish_response(payload, {"status": "blocked", "code": "resident_native_engine_required"}, started)
+            else:
+                runtime = _get_cpp_dll_runtime(model_path)
+            if runtime is None:
+                raise RuntimeError("resident native DLL preparation unavailable")
+            image = stage["image"]
+            runtime.prepare_rgb(image.tobytes("raw", "RGB"), width=image.width, height=image.height,
+                                stride=image.width * 3, signature=("coarse", *stage["key"]))
+            response = {"status": "prepared", "runtime": "dll", "backend": "cpp",
+                        "infer_size": list(image.size), "image_transport": "raw_rgb", "decode": False}
+        except Exception as exc:
+            response = {"status": "error", "code": "prepare_unavailable", "error": str(exc),
+                        "next_step": "warm_native_backend", "retryable": False}
+        return _finish_response(payload, response, started)
     if action == "warm":
         backend = str(payload.get("backend") or os.getenv("COMPUTER_USE_LOCATE_BACKEND", "cpp")).lower().strip()
         if backend == "auto":
@@ -1493,6 +1566,7 @@ def _handle(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "runtime": "dll",
                     "model": model_path,
                     "dll": runtime.dll_path,
+                    "dll_sha256": getattr(runtime, "dll_sha256", None),
                     "abi_version": runtime.abi_version,
                     "raw_rgb": runtime._prepare_rgb is not None,
                     "device": "CUDA",
@@ -1534,6 +1608,8 @@ def _handle(payload: Dict[str, Any]) -> Dict[str, Any]:
 def _finish_response(payload: Dict[str, Any], response: Dict[str, Any], started: float) -> Dict[str, Any]:
     """Attach protocol correlation and consistent total/per-pass telemetry."""
     result = dict(response)
+    if payload.get("frame_transport") is not None:
+        result["capture_transport"] = "shared_rgb"
     if payload.get("request_id") is not None:
         result["request_id"] = str(payload["request_id"])
     pass_timings: List[Dict[str, Any]] = []

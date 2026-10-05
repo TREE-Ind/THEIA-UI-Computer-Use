@@ -73,6 +73,10 @@ def test_all_screens_capture_metadata_uses_virtual_origin(monkeypatch, tmp_path)
         width = 4480
         height = 1640
 
+        def convert(self, mode):
+            from PIL import Image
+            return Image.new(mode, (self.width, self.height), 'white')
+
         def save(self, path):
             Path(path).write_bytes(b"png")
 
